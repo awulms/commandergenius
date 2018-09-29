@@ -437,7 +437,7 @@ class SettingsMenuMisc extends SettingsMenu
 			String readmes[] = Globals.ReadmeText.split("\\^");
 			String lang = new String(Locale.getDefault().getLanguage()) + ":";
 			if( p.isRunningOnOUYA() )
-				lang = "ouya:";
+				lang = "tv:";
 			String readme = readmes[0];
 			String buttonName = "", buttonUrl = "";
 			for( String r: readmes )
@@ -469,10 +469,14 @@ class SettingsMenuMisc extends SettingsMenu
 			text.setPadding(0, 5, 0, 20);
 			text.setTextSize(20.0f);
 			text.setGravity(Gravity.CENTER);
+			text.setFocusable(false);
+			text.setFocusableInTouchMode(false);
 			AlertDialog.Builder builder = new AlertDialog.Builder(p);
 			ScrollView scroll = new ScrollView(p);
+			scroll.setFocusable(false);
+			scroll.setFocusableInTouchMode(false);
 			scroll.addView(text, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-			Button ok = new Button(p);
+			final Button ok = new Button(p);
 			final AlertDialog alertDismiss[] = new AlertDialog[1];
 			ok.setOnClickListener(new View.OnClickListener()
 			{
@@ -485,7 +489,6 @@ class SettingsMenuMisc extends SettingsMenu
 			LinearLayout layout = new LinearLayout(p);
 			layout.setOrientation(LinearLayout.VERTICAL);
 			layout.addView(scroll);
-			//layout.addView(text);
 			layout.addView(ok);
 			if( buttonName.length() > 0 )
 			{
@@ -554,12 +557,10 @@ class SettingsMenuMisc extends SettingsMenu
 			edit.setFocusableInTouchMode(true);
 			edit.setFocusable(true);
 			if (Globals.CommandLine.length() == 0)
-				Globals.CommandLine = "SDL_app";
-			if (Globals.CommandLine.indexOf(" ") == -1)
-				Globals.CommandLine += " ";
-			edit.setText(Globals.CommandLine.substring(Globals.CommandLine.indexOf(" ")).replace(" ", "\n").replace("	", " "));
+				Globals.CommandLine = "App";
+			edit.setText(Globals.CommandLine.replace(" ", "\n").replace("	", " "));
 			edit.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
-			edit.setMinLines(2);
+			edit.setMinLines(1);
 			//edit.setMaxLines(100);
 			builder.setView(edit);
 
@@ -567,17 +568,22 @@ class SettingsMenuMisc extends SettingsMenu
 			{
 				public void onClick(DialogInterface dialog, int item) 
 				{
-					Globals.CommandLine = "SDL_app";
+					Globals.CommandLine = "";
 					String args[] = edit.getText().toString().split("\n");
-					boolean firstArg = true;
-					for( String arg: args )
+					if( args.length == 1 )
 					{
-						Globals.CommandLine += " ";
-						if( firstArg )
-							Globals.CommandLine += arg;
-						else
+						Globals.CommandLine = args[0];
+					}
+					else
+					{
+						boolean firstArg = true;
+						for( String arg: args )
+						{
+							if( !firstArg )
+								Globals.CommandLine += " ";
 							Globals.CommandLine += arg.replace(" ", "	");
-						firstArg = false;
+							firstArg = false;
+						}
 					}
 					dialog.dismiss();
 					goBack(p);

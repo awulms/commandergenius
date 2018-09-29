@@ -78,18 +78,19 @@ import android.content.Intent;
 
 
 // TODO: too much code here, split into multiple files, possibly auto-generated menus?
-class Settings
+public class Settings
 {
 	static String SettingsFileName = "libsdl-settings.cfg";
 
 	static boolean settingsLoaded = false;
 	static boolean settingsChanged = false;
 	static final int SETTINGS_FILE_VERSION = 5;
+	static boolean convertButtonSizeFromOldSdlVersion = false;
 
 	static void Save(final MainActivity p)
 	{
 		try {
-			ObjectOutputStream out = new ObjectOutputStream(p.openFileOutput( SettingsFileName, p.MODE_WORLD_READABLE ));
+			ObjectOutputStream out = new ObjectOutputStream(p.openFileOutput( SettingsFileName, p.MODE_PRIVATE ));
 			out.writeInt(SETTINGS_FILE_VERSION);
 			out.writeBoolean(Globals.DownloadToSdcard);
 			out.writeBoolean(Globals.PhoneHasArrowKeys);
@@ -186,6 +187,9 @@ class Settings
 			out.writeBoolean(Globals.ImmersiveMode);
 			out.writeBoolean(Globals.AutoDetectOrientation);
 			out.writeBoolean(Globals.TvBorders);
+			out.writeBoolean(Globals.ForceHardwareMouse);
+			convertButtonSizeFromOldSdlVersion = false;
+			out.writeBoolean(convertButtonSizeFromOldSdlVersion);
 
 			out.close();
 			settingsLoaded = true;
@@ -269,6 +273,7 @@ class Settings
 			// ICS update sends events in a proper way
 			Globals.RemapHwKeycode[112] = SDL_1_2_Keycodes.SDLK_UNKNOWN;
 		}
+		convertButtonSizeFromOldSdlVersion = false;
 
 		try {
 			ObjectInputStream settingsFile = new ObjectInputStream(new FileInputStream( p.getFilesDir().getAbsolutePath() + "/" + SettingsFileName ));
@@ -280,6 +285,7 @@ class Settings
 			Globals.UseAccelerometerAsArrowKeys = settingsFile.readBoolean();
 			Globals.UseTouchscreenKeyboard = settingsFile.readBoolean();
 			Globals.TouchscreenKeyboardSize = settingsFile.readInt();
+			convertButtonSizeFromOldSdlVersion = true; // Will be changed to false if we read the remainder of the config file
 			Globals.AccelerometerSensitivity = settingsFile.readInt();
 			Globals.AccelerometerCenterPos = settingsFile.readInt();
 			settingsFile.readInt();
@@ -379,6 +385,8 @@ class Settings
 			Globals.ImmersiveMode = settingsFile.readBoolean();
 			Globals.AutoDetectOrientation = settingsFile.readBoolean();
 			Globals.TvBorders = settingsFile.readBoolean();
+			Globals.ForceHardwareMouse = settingsFile.readBoolean();
+			convertButtonSizeFromOldSdlVersion = settingsFile.readBoolean();
 
 			settingsLoaded = true;
 
@@ -401,9 +409,18 @@ class Settings
 			return;
 			
 		} catch( FileNotFoundException e ) {
+			Log.i("SDL", "libSDL: settings file not found: " + e);
 		} catch( SecurityException e ) {
-		} catch ( IOException e ) {
+			Log.i("SDL", "libSDL: settings file cannot be opened: " + e);
+		} catch( IOException e ) {
+			Log.i("SDL", "libSDL: settings file cannot be read: " + e);
 			DeleteFilesOnUpgrade(p);
+			if (convertButtonSizeFromOldSdlVersion && Globals.TouchscreenKeyboardSize + 1 < Globals.TOUCHSCREEN_KEYBOARD_CUSTOM)
+			{
+				Globals.TouchscreenKeyboardSize ++; // New default button size is bigger, but we are keeping old button size for existing installations
+				//if (Globals.AppTouchscreenKeyboardKeysAmount <= 4 && Globals.TouchscreenKeyboardSize + 1 < Globals.TOUCHSCREEN_KEYBOARD_CUSTOM)
+				//	Globals.TouchscreenKeyboardSize ++; // If there are only 4 buttons they are even bigger
+			}
 			if( Globals.ResetSdlConfigForThisVersion )
 			{
 				Log.i("SDL", "libSDL: old cfg version unknown or too old, our version " + p.getApplicationVersion() + " and we need to clean up config file");
@@ -508,7 +525,7 @@ class Settings
 	public static void DeleteSdlConfigOnUpgradeAndRestart(final MainActivity p)
 	{
 		try {
-			ObjectOutputStream out = new ObjectOutputStream(p.openFileOutput( SettingsFileName, p.MODE_WORLD_READABLE ));
+			ObjectOutputStream out = new ObjectOutputStream(p.openFileOutput( SettingsFileName, p.MODE_PRIVATE ));
 			out.writeInt(-1);
 			out.close();
 		} catch( FileNotFoundException e ) {
@@ -553,7 +570,7 @@ class Settings
 	static void Apply(MainActivity p)
 	{
 		setEnvVars(p);
-		nativeSetVideoDepth(Globals.VideoDepthBpp, Globals.NeedGles2 ? 1 : 0);
+		nativeSetVideoDepth(Globals.VideoDepthBpp, Globals.NeedGles2 ? 1 : 0, Globals.NeedGles3 ? 1 : 0);
 		if(Globals.VideoLinearFilter)
 			nativeSetVideoLinearFilter();
 		if( Globals.CompatibilityHacksVideo )
@@ -588,7 +605,8 @@ class Settings
 											Globals.TouchscreenKeyboardDrawSize,
 											Globals.TouchscreenKeyboardTheme,
 											Globals.TouchscreenKeyboardTransparency,
-											Globals.FloatingScreenJoystick ? 1 : 0 );
+											Globals.FloatingScreenJoystick ? 1 : 0,
+											Globals.AppTouchscreenKeyboardKeysAmount );
 				SetupTouchscreenKeyboardGraphics(p);
 				for( int i = 0; i < Globals.RemapScreenKbKeycode.length; i++ )
 					nativeSetKeymapKeyScreenKb(i, SDL_Keys.values[Globals.RemapScreenKbKeycode[i]]);
@@ -641,6 +659,10 @@ class Settings
 		nativeSetEnv( "ANDROID_PACKAGE_NAME", p.getPackageName() );
 		nativeSetEnv( "ANDROID_PACKAGE_PATH", p.getPackageCodePath() );
 		nativeSetEnv( "ANDROID_MY_OWN_APP_FILE", p.getPackageResourcePath() ); // This may be different from p.getPackageCodePath() on multi-user systems, but should still be the same .apk file
+		nativeSetEnv( "ANDROID_OBB_DIR", Environment.getExternalStorageDirectory().getAbsolutePath() + "/Android/obb/" + p.getPackageName() );
+		try {
+			nativeSetEnv( "ANDROID_OBB_DIR", p.getObbDir().getAbsolutePath() );
+		} catch (Exception eeeeeee) {}
 		try {
 			nativeSetEnv( "ANDROID_APP_NAME", p.getString(p.getApplicationInfo().labelRes) );
 		} catch (Exception eeeeee) {}
@@ -958,11 +980,11 @@ class Settings
 	private static native void nativeSetMultitouchUsed();
 	private static native void nativeSetTouchscreenKeyboardUsed();
 	private static native void nativeSetVideoLinearFilter();
-	private static native void nativeSetVideoDepth(int bpp, int gles2);
+	private static native void nativeSetVideoDepth(int bpp, int gles2, int gles3);
 	private static native void nativeSetCompatibilityHacks();
 	private static native void nativeSetVideoMultithreaded();
 	private static native void nativeSetVideoForceSoftwareMode();
-	private static native void nativeSetupScreenKeyboard(int size, int drawsize, int theme, int transparency, int floatingScreenJoystick);
+	private static native void nativeSetupScreenKeyboard(int size, int drawsize, int theme, int transparency, int floatingScreenJoystick, int buttonAmount);
 	private static native void nativeSetupScreenKeyboardButtons(byte[] img);
 	private static native void nativeInitKeymap();
 	private static native int  nativeGetKeymapKey(int key);
@@ -974,7 +996,7 @@ class Settings
 	private static native int  nativeGetKeymapKeyMultitouchGesture(int keynum);
 	private static native void nativeSetKeymapKeyMultitouchGesture(int keynum, int key);
 	private static native void nativeSetMultitouchGestureSensitivity(int sensitivity);
-	private static native void nativeSetTouchscreenCalibration(int x1, int y1, int x2, int y2);
+	public static native void nativeSetTouchscreenCalibration(int x1, int y1, int x2, int y2);
 	public static native void  nativeSetEnv(final String name, final String value);
 	public static native int   nativeChmod(final String name, int mode);
 	public static native void  nativeChdir(final String dir);

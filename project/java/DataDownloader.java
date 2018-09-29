@@ -29,6 +29,7 @@ import android.view.KeyEvent;
 import android.view.Window;
 import android.view.WindowManager;
 import android.os.Environment;
+import android.view.View;
 
 import android.widget.TextView;
 import java.net.URLConnection;
@@ -186,7 +187,8 @@ class DataDownloader extends Thread
 	@Override
 	public void run()
 	{
-		Parent.keyListener = new BackKeyListener(Parent);
+		Parent.getVideoLayout().setOnKeyListener(new BackKeyListener(Parent));
+
 		String [] downloadFiles = Globals.DataDownloadUrl;
 		int total = 0;
 		int count = 0;
@@ -217,7 +219,7 @@ class DataDownloader extends Thread
 			}
 		}
 		DownloadComplete = true;
-		Parent.keyListener = null;
+		Parent.getVideoLayout().setOnKeyListener(null);
 		initParent();
 	}
 
@@ -287,7 +289,7 @@ class DataDownloader extends Thread
 		Log.i("SDL", "Downloading data to: '" + outFilesDir + "'");
 		try {
 			File outDir = new File( outFilesDir );
-			if( !(outDir.exists() && outDir.isDirectory()) )
+			if( !outDir.exists() )
 				outDir.mkdirs();
 			OutputStream out = new FileOutputStream( getOutFilePath(".nomedia") );
 			out.flush();
@@ -750,14 +752,19 @@ class DataDownloader extends Thread
 						ret = check.read(buf, 0, buf.length);
 					}
 					check.close();
+
+
+					// NOTE: For some reason this not work properly on older Android versions (4.4 and below). 
+					// Setting this to become a warning
 					if( check.getChecksum().getValue() != entry.getCrc() || count != entry.getSize() )
 					{
-						File ff = new File(path);
-						ff.delete();
+						//File ff = new File(path);
+						//ff.delete();
 						Log.i("SDL", "Saving file '" + path + "' - CRC check failed, ZIP: " +
 											String.format("%x", entry.getCrc()) + " actual file: " + String.format("%x", check.getChecksum().getValue()) +
 											" file size in ZIP: " + entry.getSize() + " actual size " + count );
-						throw new Exception();
+						Log.i("SDL", "If you still get problems try to reset the app or delete file at path " + path );
+						//throw new Exception();
 					}
 				} catch( Exception e ) {
 					Status.setText( res.getString(R.string.error_write, path) + ": " + e.getMessage() );
@@ -798,7 +805,7 @@ class DataDownloader extends Thread
 				Parent.getPackageName() + "/" + url.substring("obb:".length()) + "." + Parent.getPackageName() + ".obb";
 	}
 
-	public class BackKeyListener implements MainActivity.KeyEventsListener
+	public class BackKeyListener implements View.OnKeyListener
 	{
 		MainActivity p;
 		public BackKeyListener(MainActivity _p)
@@ -806,7 +813,8 @@ class DataDownloader extends Thread
 			p = _p;
 		}
 
-		public void onKeyEvent(final int keyCode)
+		@Override
+		public boolean onKey(View v, int keyCode, KeyEvent event)
 		{
 			if( DownloadFailed )
 				System.exit(1);
@@ -839,6 +847,7 @@ class DataDownloader extends Thread
 			AlertDialog alert = builder.create();
 			alert.setOwnerActivity(p);
 			alert.show();
+			return true;
 		}
 	}
 

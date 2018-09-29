@@ -6,29 +6,18 @@
 APPNAME=`grep AppName AndroidAppSettings.cfg | sed 's/.*=//' | tr -d '"' | tr " '/" '---'`
 APPVER=`grep AppVersionName AndroidAppSettings.cfg | sed 's/.*=//' | tr -d '"' | tr " '/" '---'`
 
-cd project/bin
+cd project/app/build/outputs/apk/
 
 # Remove old certificate
 rm -f Signed.apk
-cp -f MainActivity-debug.apk Signed.apk
-zip -d Signed.apk "META-INF/*"
+cp -f app-release.apk Signed.apk
+#zip -d Signed.apk "META-INF/*"
 # Sign with the new certificate
+rm -f ../../../../../$APPNAME-$APPVER.apk
+zipalign 4 Signed.apk ../../../../../$APPNAME-$APPVER.apk
+rm -f Signed.apk
 echo Using keystore $ANDROID_KEYSTORE_FILE and alias $ANDROID_KEYSTORE_ALIAS
 stty -echo
-jarsigner -verbose -tsa http://timestamp.digicert.com -keystore $ANDROID_KEYSTORE_FILE -sigalg MD5withRSA -digestalg SHA1 Signed.apk $ANDROID_KEYSTORE_ALIAS || exit 1
+apksigner sign --ks $ANDROID_KEYSTORE_FILE --ks-key-alias $ANDROID_KEYSTORE_ALIAS ../../../../../$APPNAME-$APPVER.apk || exit 1
 stty echo
 echo
-rm -f MainActivity-debug.apk
-zipalign 4 Signed.apk MainActivity-debug.apk
-rm -f Signed.apk
-cp -f MainActivity-debug.apk ../../$APPNAME-$APPVER.apk
-
-if false; then
-#DEBUGINFODIR=`aapt dump badging App.apk | grep "package:" | sed "s/.*name=[']\([^']*\)['].*versionCode=[']\([^']*\)['].*/\1-\2/" | tr " '/" '---'`
-DEBUGINFODIR=$APPNAME-$APPVER
-echo Copying debug info to project/debuginfo/$DEBUGINFODIR
-mkdir -p ../debuginfo/$DEBUGINFODIR/x86 ../debuginfo/$DEBUGINFODIR/armeabi-v7a
-cp -f ../obj/local/x86/*.so ../debuginfo/$DEBUGINFODIR/x86
-cp -f ../obj/local/armeabi-v7a/*.so ../debuginfo/$DEBUGINFODIR/armeabi-v7a
-cp -f MainActivity-debug.apk ../debuginfo/$DEBUGINFODIR/$APPNAME-$APPVER.apk
-fi

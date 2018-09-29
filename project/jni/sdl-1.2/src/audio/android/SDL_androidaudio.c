@@ -212,6 +212,7 @@ static int ANDROIDAUD_OpenAudio (_THIS, SDL_AudioSpec *spec)
 		return (-1);
 	}
 
+	__android_log_print(ANDROID_LOG_INFO, "libSDL", "ANDROIDAUD_OpenAudio(): Requesting audio: freq %d channels %d format %s bufsize %d", audioFormat->freq, audioFormat->channels, bytesPerSample == 2 ? "S16" : "S8", audioFormat->size);
 	// The returned audioBufferSize may be huge, up to 100 Kb for 44100 because user may have selected large audio buffer to get rid of choppy sound
 	audioBufferSize = (*jniEnv)->CallIntMethod( jniEnv, JavaAudioThread, JavaInitAudio, 
 					(jint)audioFormat->freq, (jint)audioFormat->channels, 
@@ -239,7 +240,7 @@ static int ANDROIDAUD_OpenAudio (_THIS, SDL_AudioSpec *spec)
 #endif
 
 	SDL_CalculateAudioSpec(audioFormat);
-	__android_log_print(ANDROID_LOG_INFO, "libSDL", "ANDROIDAUD_OpenAudio(): app opened audio bytespersample %d freq %d channels %d bufsize %d, SDL returns bufsize %d", bytesPerSample, audioFormat->freq, (int)audioFormat->channels, audioBufferSize, audioFormat->size);
+	__android_log_print(ANDROID_LOG_INFO, "libSDL", "ANDROIDAUD_OpenAudio(): app opened audio bytespersample %d freq %d channels %d bufsize %d, SDL returns bufsize %d", bytesPerSample, audioFormat->freq, (int)audioFormat->channels, (int)audioBufferSize, audioFormat->size);
 
 #if SDL_VERSION_ATLEAST(1,3,0)
 	return(1);
@@ -405,12 +406,13 @@ JNIEXPORT jint JNICALL JAVA_EXPORT_NAME(AudioThread_nativeAudioInitJavaCallbacks
 	JavaDeinitAudio = (*jniEnv)->GetMethodID(jniEnv, JavaAudioThreadClass, "deinitAudio", "()I");
 	JavaPauseAudioPlayback = (*jniEnv)->GetMethodID(jniEnv, JavaAudioThreadClass, "pauseAudioPlayback", "()I");
 	JavaResumeAudioPlayback = (*jniEnv)->GetMethodID(jniEnv, JavaAudioThreadClass, "resumeAudioPlayback", "()I");
+	return 0;
 }
 
 JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved)
 {
 	jniVM = vm;
-	return JNI_VERSION_1_2;
+	return JNI_VERSION_1_6;
 };
 
 JNIEXPORT void JNICALL JNI_OnUnload(JavaVM *vm, void *reserved)

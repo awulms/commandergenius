@@ -32,7 +32,13 @@ class Globals
 	public static String ApplicationName = "CommanderGenius";
 	public static String AppLibraries[] = { "sdl-1.2", };
 	public static String AppMainLibraries[] = { "application", "sdl_main" };
-	public static String LibraryNamesMap[][] = { { "crypto", "crypto.so.sdl.1" }, { "ssl", "ssl.so.sdl.1" }, { "curl", "curl-sdl" } }; // Because some libraries are named differently to not clash with system libs
+	public static String LibraryNamesMap[][] = {
+												{ "crypto", "crypto.so.sdl.1" },
+												{ "ssl", "ssl.so.sdl.1" },
+												{ "curl", "curl-sdl" },
+												{ "expat", "expat-sdl" },
+												{ "sqlite3", "sqlite3-sdl" },
+											}; // Because some libraries are named differently to not clash with system libs
 	public static final boolean Using_SDL_1_3 = false;
 	public static final boolean Using_SDL_2_0 = false;
 	public static String[] DataDownloadUrl = { "Data files are 2 Mb|https://sourceforge.net/projects/libsdl-android/files/CommanderGenius/commandergenius-data.zip/download", "High-quality GFX and music - 40 Mb|https://sourceforge.net/projects/libsdl-android/files/CommanderGenius/commandergenius-hqp.zip/download" };
@@ -40,6 +46,7 @@ class Globals
 	public static boolean NeedDepthBuffer = false;
 	public static boolean NeedStencilBuffer = false;
 	public static boolean NeedGles2 = false;
+	public static boolean NeedGles3 = false;
 	public static boolean CompatibilityHacksVideo = false;
 	public static boolean CompatibilityHacksForceScreenUpdateMouseClick = true;
 	public static boolean CompatibilityHacksStaticInit = false;
@@ -84,13 +91,14 @@ class Globals
 	public static boolean HorizontalOrientation = true;
 	public static boolean AutoDetectOrientation = false;
 	public static boolean ImmersiveMode = true;
+	public static boolean HideSystemMousePointer = false;
 	public static boolean DownloadToSdcard = true;
 	public static boolean PhoneHasArrowKeys = false;
 	public static boolean UseAccelerometerAsArrowKeys = false;
 	public static boolean UseTouchscreenKeyboard = true;
 	public static int TouchscreenKeyboardSize = 1;
 	public static final int TOUCHSCREEN_KEYBOARD_CUSTOM = 4;
-	public static int TouchscreenKeyboardDrawSize = 1;
+	public static int TouchscreenKeyboardDrawSize = 2;
 	public static int TouchscreenKeyboardTheme = 2;
 	public static int TouchscreenKeyboardTransparency = 2;
 	public static boolean FloatingScreenJoystick = false;
@@ -111,6 +119,7 @@ class Globals
 	public static int MoveMouseWithGyroscopeSpeed = 2;
 	public static boolean ClickMouseWithDpad = false;
 	public static boolean RelativeMouseMovement = ForceRelativeMouseMode; // Laptop touchpad mode
+	public static boolean ForceHardwareMouse = false;
 	public static int RelativeMouseMovementSpeed = 2;
 	public static int RelativeMouseMovementAccel = 0;
 	public static int ShowScreenUnderFinger = Mouse.ZOOM_NONE;
@@ -138,5 +147,4 @@ class Globals
 	public static boolean MultiThreadedVideo = false;
 
 	public static boolean OuyaEmulation = false; // For debugging
-	public static boolean RedirectStdout = false; // For debugging
 }

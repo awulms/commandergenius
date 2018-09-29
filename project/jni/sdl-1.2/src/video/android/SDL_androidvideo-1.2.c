@@ -31,6 +31,7 @@ If you compile this code with SDL 1.3 or newer, or use in some other way, the li
 #include "SDL_mouse.h"
 #include "SDL_mutex.h"
 #include "SDL_thread.h"
+#include "SDL_timer.h"
 #include "../SDL_sysvideo.h"
 #include "../SDL_pixels_c.h"
 #include "../../events/SDL_events_c.h"
@@ -43,8 +44,6 @@ If you compile this code with SDL 1.3 or newer, or use in some other way, the li
 
 #include <jni.h>
 #include <android/log.h>
-#include <GLES/gl.h>
-#include <GLES/glext.h>
 #include <sys/time.h>
 #include <time.h>
 #include <stdint.h>
@@ -61,7 +60,9 @@ If you compile this code with SDL 1.3 or newer, or use in some other way, the li
 #define DEBUGOUT(...)
 #endif
 
-#ifdef USE_GLSHIM
+#include "SDL_opengles.h"
+
+#ifdef USE_GL4ES
 #include <GL/gl.h>
 #endif
 
@@ -130,7 +131,7 @@ int ANDROID_ToggleFullScreen(_THIS, int fullscreen)
 	return 1;
 }
 
-enum { SDL_NUMMODES = 58 };
+enum { SDL_NUMMODES = 63 };
 static SDL_Rect *SDL_modelist[SDL_NUMMODES+1];
 
 //#define SDL_modelist		(this->hidden->SDL_modelist)
@@ -146,7 +147,6 @@ SDL_Surface *SDL_CurrentVideoSurface = NULL;
 static int HwSurfaceCount = 0;
 static SDL_Surface ** HwSurfaceList = NULL;
 void * glLibraryHandle = NULL;
-void * gl2LibraryHandle = NULL;
 
 static Uint32 SDL_VideoThreadID = 0;
 int SDL_ANDROID_InsideVideoThread()
@@ -218,13 +218,21 @@ static SDL_VideoDevice *ANDROID_CreateDevice(int devindex)
 
 	device->handles_any_size = 1; // Any video mode is OK
 
-	glLibraryHandle = dlopen("libGLESv1_CM.so", RTLD_NOW | RTLD_GLOBAL);
-	if(SDL_ANDROID_UseGles2)
+	if ( SDL_ANDROID_UseGles3 )
 	{
-		gl2LibraryHandle = dlopen("libGLESv2.so", RTLD_NOW | RTLD_GLOBAL);
-		__android_log_print(ANDROID_LOG_INFO, "libSDL", "Loading libGLESv2.so: %p", gl2LibraryHandle);
+		glLibraryHandle = dlopen("libGLESv3.so", RTLD_LAZY | RTLD_GLOBAL);
+		__android_log_print(ANDROID_LOG_INFO, "libSDL", "Loading libGLESv3.so: %p", glLibraryHandle);
 	}
-	
+	else if ( SDL_ANDROID_UseGles2 )
+	{
+		glLibraryHandle = dlopen("libGLESv2.so", RTLD_LAZY | RTLD_GLOBAL);
+		__android_log_print(ANDROID_LOG_INFO, "libSDL", "Loading libGLESv2.so: %p", glLibraryHandle);
+	}
+	else
+	{
+		glLibraryHandle = dlopen("libGLESv1_CM.so", RTLD_LAZY | RTLD_GLOBAL);
+	}
+
 	return device;
 }
 
@@ -342,7 +350,12 @@ int ANDROID_VideoInit(_THIS, SDL_PixelFormat *vformat)
 	SDL_modelist[55]->w = 1280; SDL_modelist[55]->h = 960; // For UQM-HD
 	SDL_modelist[56]->w = 960; SDL_modelist[56]->h = 600; // For ScummVM 3x-mode
 	SDL_modelist[57]->w = 960; SDL_modelist[57]->h = 540; // Virtual wide-screen mode
-	SDL_modelist[58] = NULL;
+	SDL_modelist[58]->w = 720; SDL_modelist[58]->h = 400; // Virtual wide-screen mode
+	SDL_modelist[59]->w = 480; SDL_modelist[59]->h = 272; // PSP
+	SDL_modelist[60]->w = 996; SDL_modelist[60]->h = 560; // For OpenTTD
+	SDL_modelist[61]->w = 1280; SDL_modelist[61]->h = 800; // for Basilisk2
+	SDL_modelist[62]->w = 1366; SDL_modelist[62]->h = 768; // for Basilisk2
+	SDL_modelist[63] = NULL;
 	// If you going to add another video mode, increase SDL_NUMMODES constant
 	
 	SDL_VideoInit_1_3(NULL, 0);
@@ -416,7 +429,7 @@ SDL_Surface *ANDROID_SetVideoMode(_THIS, SDL_Surface *current,
 				// and expects those 256 pixels to stretch 2x height like on a TV interlaced display.
 				SDL_ANDROID_sWindowWidth = SDL_ANDROID_sWindowHeight * 4 / 3;
 
-			SDL_ANDROID_TouchscreenCalibrationWidth = SDL_ANDROID_sWindowWidth;
+			//SDL_ANDROID_TouchscreenCalibrationWidth = SDL_ANDROID_sWindowWidth;
 			SDL_ANDROID_ForceClearScreenRectAmount = 2;
 		}
 
@@ -484,8 +497,10 @@ SDL_Surface *ANDROID_SetVideoMode(_THIS, SDL_Surface *current,
 			HwSurfaceList[HwSurfaceCount-1] = current;
 			DEBUGOUT("ANDROID_SetVideoMode() HwSurfaceCount %d HwSurfaceList %p", HwSurfaceCount, HwSurfaceList);
 		}
+#if SDL_VIDEO_OPENGL_ES_VERSION == 1
 		glViewport(0, 0, SDL_ANDROID_sRealWindowWidth, SDL_ANDROID_sRealWindowHeight);
 		glOrthof(0, SDL_ANDROID_sRealWindowWidth, SDL_ANDROID_sRealWindowHeight, 0, 0, 1);
+#endif
 	}
 
 	/* Allocate the new pixel format for the screen */
@@ -505,7 +520,7 @@ SDL_Surface *ANDROID_SetVideoMode(_THIS, SDL_Surface *current,
 	/* Set up the new mode framebuffer */
 	SDL_CurrentVideoSurface = current;
 
-	UpdateScreenUnderFingerRect(0,0);
+	SDL_ANDROID_UpdateScreenUnderFingerRect(0,0);
 	SDL_ANDROID_ShowScreenUnderFingerRect.w = SDL_ANDROID_ShowScreenUnderFingerRect.h = 0;
 	SDL_ANDROID_SetHoverDeadzone();
 	SDL_ANDROID_currentMouseX = SDL_ANDROID_sFakeWindowWidth / 2;
@@ -1029,6 +1044,7 @@ static void ANDROID_FlipHWSurfaceInternal(int numrects, SDL_Rect *rects)
 			SDL_RenderCopy((struct SDL_Texture *)SDL_CurrentVideoSurface->hwdata, &rect, &dstrect);
 			int buttons = SDL_GetMouseState(NULL, NULL);
 			// Do it old-fashioned way with direct GL calls
+#if SDL_VIDEO_OPENGL_ES_VERSION == 1
 			glPushMatrix();
 			glLoadIdentity();
 			glOrthof( 0.0f, SDL_ANDROID_sFakeWindowWidth, SDL_ANDROID_sFakeWindowHeight, 0.0f, 0.0f, 1.0f );
@@ -1042,6 +1058,7 @@ static void ANDROID_FlipHWSurfaceInternal(int numrects, SDL_Rect *rects)
 			glDrawArrays(GL_LINE_LOOP, 0, 4);
 			glDisableClientState(GL_VERTEX_ARRAY);
 			glPopMatrix();
+#endif
 		}
 #ifdef VIDEO_DEBUG
 		if( SDL_ANDROID_VideoDebugRect.w > 0 )
@@ -1197,8 +1214,10 @@ void SDL_ANDROID_VideoContextRecreated()
 		SDL_PrivateAndroidSetDesktopMode(SDL_VideoWindow, SDL_ANDROID_sRealWindowWidth, SDL_ANDROID_sRealWindowHeight);
 		SDL_SelectRenderer(SDL_VideoWindow); // Re-apply glOrtho() and blend modes
 		// Re-apply our custom 4:3 screen aspect ratio
+#if SDL_VIDEO_OPENGL_ES_VERSION == 1
 		glViewport(0, 0, SDL_ANDROID_sRealWindowWidth, SDL_ANDROID_sRealWindowHeight);
 		glOrthof(0, SDL_ANDROID_sRealWindowWidth, SDL_ANDROID_sWindowHeight, 0, 0, 1);
+#endif
 		for( i = 0; i < HwSurfaceCount; i++ )
 		{
 			// Allocate HW texture
@@ -1238,12 +1257,10 @@ void SDL_ANDROID_VideoContextRecreated()
 
 static void* ANDROID_GL_GetProcAddress(_THIS, const char *proc)
 {
-#ifdef USE_GLSHIM
-        void * func = glXGetProcAddress(proc);
+#ifdef USE_GL4ES
+	void * func = glXGetProcAddress(proc);
 #else
 	void * func = dlsym(glLibraryHandle, proc);
-	if(!func && gl2LibraryHandle)
-		func = dlsym(gl2LibraryHandle, proc);
 #endif
 	__android_log_print(ANDROID_LOG_INFO, "libSDL", "ANDROID_GL_GetProcAddress(\"%s\"): %p", proc, func);
 	return func;
@@ -1383,7 +1400,7 @@ int ANDROID_VideoInitMT(_THIS, SDL_PixelFormat *vformat)
 
 SDL_Surface *ANDROID_SetVideoModeMT(_THIS, SDL_Surface *current, int width, int height, int bpp, Uint32 flags)
 {
-	if( flags & SDL_OPENGL || flags & SDL_HWSURFACE )
+	if( flags & SDL_OPENGL || (flags & SDL_HWSURFACE && !SDL_ANDROID_VideoForceSoftwareMode) )
 	{
 		return NULL;
 	}

@@ -6,6 +6,7 @@ run_apk=false
 sign_apk=false
 build_release=true
 quick_rebuild=false
+QUICK_REBUILD_ARGS=
 
 if [ "$#" -gt 0 -a "$1" = "-s" ]; then
 	shift
@@ -26,6 +27,7 @@ fi
 if [ "$#" -gt 0 -a "$1" = "-q" ]; then
 	shift
 	quick_rebuild=true
+	QUICK_REBUILD_ARGS=APP_ABI=armeabi-v7a
 fi
 
 if [ "$#" -gt 0 -a "$1" = "release" ]; then
@@ -70,11 +72,6 @@ if [ "$#" -gt 0 -a "$1" = "-h" ]; then
 	exit 0
 fi
 
-[ -e project/local.properties ] || {
-	android update project -p project || exit 1
-	rm -f project/src/Globals.java
-}
-
 NDK_TOOLCHAIN_VERSION=$GCCVER
 [ -z "$NDK_TOOLCHAIN_VERSION" ] && NDK_TOOLCHAIN_VERSION=4.9
 
@@ -82,30 +79,28 @@ NDK_TOOLCHAIN_VERSION=$GCCVER
 # export PATH=$PATH:~/src/endless_space/android-ndk-r7
 NDKBUILDPATH=$PATH
 export `grep "AppFullName=" AndroidAppSettings.cfg`
-if ( grep "package $AppFullName;" project/src/Globals.java > /dev/null 2>&1 && \
-		[ "`readlink AndroidAppSettings.cfg`" -ot "project/src/Globals.java" ] && \
-		[ -z "`find project/java/* project/AndroidManifestTemplate.xml -cnewer project/src/Globals.java`" ] ) ; then true ; else
+if [ -e project/local.properties ] && \
+	( grep "package $AppFullName;" project/src/Globals.java > /dev/null 2>&1 && \
+	[ "`readlink AndroidAppSettings.cfg`" -ot "project/src/Globals.java" ] && \
+	[ -z "`find project/java/* project/AndroidManifestTemplate.xml -cnewer project/src/Globals.java`" ] ) ; then true ; else
 	./changeAppSettings.sh -a || exit 1
 	sleep 1
 	touch project/src/Globals.java
 fi
-if $build_release ; then
-	sed -i 's/android:debuggable="true"/android:debuggable="false"/g' project/AndroidManifest.xml
-else
-	sed -i 's/android:debuggable="false"/android:debuggable="true"/g' project/AndroidManifest.xml
-fi
 
 MYARCH=linux-x86_64
-NCPU=4
-if uname -s | grep -i "linux" > /dev/null ; then
-	MYARCH=linux-x86_64
-	NCPU=`cat /proc/cpuinfo | grep -c -i processor`
-fi
-if uname -s | grep -i "darwin" > /dev/null ; then
-	MYARCH=darwin-x86_64
-fi
-if uname -s | grep -i "windows" > /dev/null ; then
-	MYARCH=windows-x86_64
+if [ -z "$NCPU" ]; then
+	NCPU=4
+	if uname -s | grep -i "linux" > /dev/null ; then
+		MYARCH=linux-x86_64
+		NCPU=`cat /proc/cpuinfo | grep -c -i processor`
+	fi
+	if uname -s | grep -i "darwin" > /dev/null ; then
+		MYARCH=darwin-x86_64
+	fi
+	if uname -s | grep -i "windows" > /dev/null ; then
+		MYARCH=windows-x86_64
+	fi
 fi
 
 $quick_rebuild || rm -r -f project/bin/* # New Android SDK introduced some lame-ass optimizations to the build system which we should take care about
@@ -117,25 +112,12 @@ $quick_rebuild || rm -r -f project/bin/* # New Android SDK introduced some lame-
 
 strip_libs() {
 	grep "CustomBuildScript=y" ../AndroidAppSettings.cfg > /dev/null && \
-		echo Stripping libapplication-armeabi.so by hand && \
-		rm obj/local/armeabi/libapplication.so && \
-		cp jni/application/src/libapplication-armeabi.so obj/local/armeabi/libapplication.so && \
-		cp jni/application/src/libapplication-armeabi.so libs/armeabi/libapplication.so && \
-		`which ndk-build | sed 's@/ndk-build@@'`/toolchains/arm-linux-androideabi-${NDK_TOOLCHAIN_VERSION}/prebuilt/$MYARCH/bin/arm-linux-androideabi-strip --strip-unneeded libs/armeabi/libapplication.so
-	grep "CustomBuildScript=y" ../AndroidAppSettings.cfg > /dev/null && \
 		grep "MultiABI=" ../AndroidAppSettings.cfg | grep "y\\|all\\|armeabi-v7a" > /dev/null && \
 		echo Stripping libapplication-armeabi-v7a.so by hand && \
 		rm obj/local/armeabi-v7a/libapplication.so && \
 		cp jni/application/src/libapplication-armeabi-v7a.so obj/local/armeabi-v7a/libapplication.so && \
 		cp jni/application/src/libapplication-armeabi-v7a.so libs/armeabi-v7a/libapplication.so && \
 		`which ndk-build | sed 's@/ndk-build@@'`/toolchains/arm-linux-androideabi-${NDK_TOOLCHAIN_VERSION}/prebuilt/$MYARCH/bin/arm-linux-androideabi-strip --strip-unneeded libs/armeabi-v7a/libapplication.so
-	grep "CustomBuildScript=y" ../AndroidAppSettings.cfg > /dev/null && \
-		grep "MultiABI=" ../AndroidAppSettings.cfg | grep "all\\|mips" > /dev/null && \
-		echo Stripping libapplication-mips.so by hand && \
-		rm obj/local/mips/libapplication.so && \
-		cp jni/application/src/libapplication-mips.so obj/local/mips/libapplication.so && \
-		cp jni/application/src/libapplication-mips.so libs/mips/libapplication.so && \
-		`which ndk-build | sed 's@/ndk-build@@'`/toolchains/mipsel-linux-android-${NDK_TOOLCHAIN_VERSION}/prebuilt/$MYARCH/bin/mipsel-linux-android-strip --strip-unneeded libs/mips/libapplication.so
 	grep "CustomBuildScript=y" ../AndroidAppSettings.cfg > /dev/null && \
 		grep "MultiABI=" ../AndroidAppSettings.cfg | grep "all\\|x86" > /dev/null && \
 		echo Stripping libapplication-x86.so by hand && \
@@ -157,48 +139,37 @@ strip_libs() {
 		cp jni/application/src/libapplication-arm64-v8a.so obj/local/arm64-v8a/libapplication.so && \
 		cp jni/application/src/libapplication-arm64-v8a.so libs/arm64-v8a/libapplication.so && \
 		`which ndk-build | sed 's@/ndk-build@@'`/toolchains/aarch64-linux-android-${NDK_TOOLCHAIN_VERSION}/prebuilt/$MYARCH/bin/aarch64-linux-android-strip --strip-unneeded libs/arm64-v8a/libapplication.so
-	grep "CustomBuildScript=y" ../AndroidAppSettings.cfg > /dev/null && \
-		grep "MultiABI=" ../AndroidAppSettings.cfg | grep "all\\|mips64" > /dev/null && \
-		echo Stripping libapplication-mips64.so by hand && \
-		rm obj/local/mips64/libapplication.so && \
-		cp jni/application/src/libapplication-mips64.so obj/local/mips64/libapplication.so && \
-		cp jni/application/src/libapplication-mips64.so libs/mips64/libapplication.so && \
-		`which ndk-build | sed 's@/ndk-build@@'`/toolchains/mips64el-linux-android-${NDK_TOOLCHAIN_VERSION}/prebuilt/$MYARCH/bin/mips64el-linux-android-strip --strip-unneeded libs/mips64/libapplication.so
 	return 0
 }
 
-cd project && env PATH=$NDKBUILDPATH BUILD_NUM_CPUS=$NCPU nice -n19 ndk-build -j$NCPU V=1 && \
+cd project && env PATH=$NDKBUILDPATH BUILD_NUM_CPUS=$NCPU nice -n19 ndk-build -j$NCPU V=1 $QUICK_REBUILD_ARGS && \
 	strip_libs && \
 	cd .. && ./copyAssets.sh && cd project && \
 	{	if $build_release ; then \
 			$quick_rebuild && { \
 				ln -s -f libs lib ; \
-				zip -u -r bin/MainActivity-release-unsigned.apk lib assets || exit 1 ; \
-			} || ant release || exit 1 ; \
+				zip -u -r app/build/outputs/apk/app-release-unsigned.apk lib assets || exit 1 ; \
+			} || ./gradlew assembleRelease || exit 1 ; \
 			[ '!' -x jni/application/src/AndroidPostBuild.sh ] || {
 				cd jni/application/src ; \
-				./AndroidPostBuild.sh `pwd`/../../../bin/MainActivity-release-unsigned.apk || exit 1 ; \
+				./AndroidPostBuild.sh `pwd`/../../../app/build/outputs/apk/app-release-unsigned.apk || exit 1 ; \
 				cd ../../.. ; \
 			} || exit 1 ; \
-			jarsigner -verbose -keystore ~/.android/debug.keystore -storepass android -sigalg MD5withRSA -digestalg SHA1 bin/MainActivity-release-unsigned.apk androiddebugkey || exit 1 ; \
-			rm -f bin/MainActivity-debug.apk ; \
-			zipalign 4 bin/MainActivity-release-unsigned.apk bin/MainActivity-debug.apk || exit 1 ; \
+			rm -f app/build/outputs/apk/app-release.apk ; \
+			zipalign 4 app/build/outputs/apk/app-release-unsigned.apk app/build/outputs/apk/app-release.apk || exit 1 ; \
+			apksigner sign --ks ~/.android/debug.keystore --ks-key-alias androiddebugkey --ks-pass pass:android app/build/outputs/apk/app-release.apk || exit 1 ; \
 		else \
-			$quick_rebuild && { \
-				ln -s -f libs lib ; \
-				zip -u -r bin/MainActivity-debug-unaligned.apk lib assets || exit 1 ; \
-				jarsigner -verbose -keystore ~/.android/debug.keystore -storepass android -sigalg MD5withRSA -digestalg SHA1 bin/MainActivity-debug-unaligned.apk androiddebugkey || exit 1 ; \
-				rm -f bin/MainActivity-debug.apk ; \
-				zipalign 4 bin/MainActivity-debug-unaligned.apk bin/MainActivity-debug.apk || exit 1 ; \
-			} || ant debug || exit 1 ; \
+			./gradlew assembleDebug && \
+			mv -f app/build/outputs/apk/app-debug.apk app/build/outputs/apk/app-release.apk \
+			|| exit 1 ; \
 		fi ; } && \
 	{	if $sign_apk; then cd .. && ./sign.sh && cd project ; else true ; fi ; } && \
 	{	$install_apk && [ -n "`adb devices | tail -n +2`" ] && \
-		{	cd bin && adb install -r MainActivity-debug.apk | grep 'Failure' && \
-			adb uninstall `grep AppFullName ../../AndroidAppSettings.cfg | sed 's/.*=//'` && adb install -r MainActivity-debug.apk ; } ; \
+		{	adb install -r app/build/outputs/apk/app-release.apk | grep 'Failure' && \
+			adb uninstall `grep AppFullName ../AndroidAppSettings.cfg | sed 's/.*=//'` && adb install -r app/build/outputs/apk/app-release.apk ; } ; \
 		true ; } && \
 	{	$run_apk && { \
-			ActivityName="`grep AppFullName ../../AndroidAppSettings.cfg | sed 's/.*=//'`/.MainActivity" ; \
+			ActivityName="`grep AppFullName ../AndroidAppSettings.cfg | sed 's/.*=//'`/.MainActivity" ; \
 			RUN_APK="adb shell am start -n $ActivityName" ; \
 			echo "Running $ActivityName on the USB-connected device:" ; \
 			echo "$RUN_APK" ; \

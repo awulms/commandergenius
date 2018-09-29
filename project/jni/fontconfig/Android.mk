@@ -13,7 +13,7 @@ LOCAL_CFLAGS += -DHAVE_CONFIG_H
 
 LOCAL_SHARED_LIBRARIES := freetype expat
 
-LOCAL_LDLIBS := -lz
+#LOCAL_LDLIBS := -lz
 
 LOCAL_C_INCLUDES := \
 	$(LOCAL_PATH)/include \
@@ -23,4 +23,4 @@ LOCAL_C_INCLUDES := \
 
 LOCAL_SRC_FILES := $(addprefix src/, $(notdir $(wildcard $(LOCAL_PATH)/src/*.c) $(wildcard $(LOCAL_PATH)/src/*.cpp)))
 
-include $(BUILD_SHARED_LIBRARY)
+include $(BUILD_STATIC_LIBRARY)

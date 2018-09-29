@@ -14,6 +14,7 @@
 #include <math.h>
 #include <android/log.h>
 #include <wchar.h>
+#include <stdexcept>
 
 #include <SDL/SDL.h>
 #include <SDL/SDL_image.h>
@@ -28,7 +29,7 @@
 ----------------------------------------------------------*/
 
 #define	SCREEN_W	640
-#define	SCREEN_H	256
+#define	SCREEN_H	540
 
 
 #define	BALLS	300
@@ -129,7 +130,7 @@ SDL_Surface *clean_alpha(SDL_Surface *s)
 /*
  * Load and convert an antialiazed, zoomed set of sprites.
  */
-SDL_Surface *load_zoomed(char *name, int alpha)
+SDL_Surface *load_zoomed(const char *name, int alpha)
 {
 	SDL_Surface *sprites;
 	SDL_Surface *temp = IMG_Load(name);
@@ -295,7 +296,7 @@ static int ballfield_init_frames(ballfield_t *bf)
 }
 
 
-int ballfield_load_gfx(ballfield_t *bf, char *name, unsigned int color)
+int ballfield_load_gfx(ballfield_t *bf, const char *name, unsigned int color)
 {
 	if(color >= COLORS)
 		return -1;
@@ -410,6 +411,16 @@ void tiled_back(SDL_Surface *back, SDL_Surface *screen, int xo, int yo)
 	SDL_BlitSurface(back, NULL, screen, &r);
 }
 
+void throw_something_more()
+{
+	throw std::runtime_error("Exception: whoops");
+}
+
+void throw_something()
+{
+	throw_something_more();
+}
+
 /*----------------------------------------------------------
 	main()
 ----------------------------------------------------------*/
@@ -442,6 +453,7 @@ int main(int argc, char* argv[])
 	int accel[5], screenjoy[4], gamepads[4][8];
 	SDL_Surface	*mouse[4];
 	int screenKeyboardShown = 0;
+	char asyncTextInputBuf[256];
 
 
 	SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_JOYSTICK);
@@ -486,7 +498,7 @@ int main(int argc, char* argv[])
 	/*
 	 * Load background image
 	 */
-	temp_image = IMG_Load("sun.gif");
+	temp_image = IMG_Load(argc > 1 ? argv[1] : "sun.gif");
 	if(!temp_image)
 	{
 		fprintf(stderr, "Could not load background!\n");
@@ -623,8 +635,8 @@ int main(int argc, char* argv[])
 				continue;
 			r.x = touchPointers[i].x;
 			r.y = touchPointers[i].y;
-			r.w = 50 + touchPointers[i].pressure / 5;
-			r.h = 50 + touchPointers[i].pressure / 5;
+			r.w = 50;// + touchPointers[i].pressure / 5;
+			r.h = 50;// + touchPointers[i].pressure / 5;
 			r.x -= r.w/2;
 			r.y -= r.h/2;
 			SDL_FillRect(screen, &r, colors[i]);
@@ -685,16 +697,26 @@ int main(int argc, char* argv[])
 				if( evt.key.state == SDL_RELEASED )
 				{
 					if(evt.key.keysym.sym == SDLK_0)
+					{
 						SDL_ANDROID_SetScreenKeyboardButtonShown(SDL_ANDROID_SCREENKEYBOARD_BUTTON_2, 1);
+						SDL_ANDROID_SetMouseEmulationMode(0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1);
+						try {
+							throw_something();
+						} catch (const std::exception & e) {
+							__android_log_print(ANDROID_LOG_INFO, "Ballfield", "Got exception: %s", e.what());
+						}
+					}
 					if(evt.key.keysym.sym == SDLK_1)
 					{
 						SDL_ANDROID_SetScreenKeyboardButtonShown(SDL_ANDROID_SCREENKEYBOARD_BUTTON_2, 0);
-						SDL_ANDROID_RequestExternalStorageRuntimePermission();
+						SDL_ANDROID_SetMouseEmulationMode(1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1);
+						//*((int*) 0x1000) = 1000; // When you need to test your debugger
 					}
 					if(evt.key.keysym.sym == SDLK_2)
 					{
-						SDL_ANDROID_SetScreenKeyboardButtonShown(SDL_ANDROID_SCREENKEYBOARD_BUTTON_DPAD, 1);
-						screen = SDL_SetVideoMode(SCREEN_W, SDL_GetVideoSurface()->h + 1, bpp, flags);
+						__android_log_print(ANDROID_LOG_INFO, "Ballfield", "Async text input started");
+						asyncTextInputBuf[0] = 0;
+						SDL_ANDROID_GetScreenKeyboardTextInputAsync(asyncTextInputBuf, sizeof(asyncTextInputBuf));
 					}
 					if(evt.key.keysym.sym == SDLK_3)
 						SDL_ANDROID_SetScreenKeyboardButtonShown(SDL_ANDROID_SCREENKEYBOARD_BUTTON_DPAD, 0);
@@ -751,18 +773,25 @@ int main(int argc, char* argv[])
 			__android_log_print(ANDROID_LOG_INFO, "Ballfield", "Screen keyboard shown: %d -> %d", screenKeyboardShown, SDL_IsScreenKeyboardShown(NULL));
 			screenKeyboardShown = SDL_IsScreenKeyboardShown(NULL);
 		}
+		if( SDL_IsScreenKeyboardShown(NULL) )
+		{
+			if(SDL_ANDROID_GetScreenKeyboardTextInputAsync(asyncTextInputBuf, sizeof(asyncTextInputBuf)) == SDL_ANDROID_TEXTINPUT_ASYNC_FINISHED)
+			{
+				__android_log_print(ANDROID_LOG_INFO, "Ballfield", "Async text input: %s", asyncTextInputBuf);
+			}
+		}
 
 		/* Animate */
 		x_speed = 500.0 * sin(t * 0.37);
 		y_speed = 500.0 * sin(t * 0.53);
 		z_speed = 400.0 * sin(t * 0.21);
-		if( SDL_GetKeyState(NULL)[SDLK_LEFT] )
+		if( SDL_GetKeyState(NULL)[SDLK_LEFT] || SDL_GetKeyState(NULL)[SDLK_a] )
 			x_speed -= 100000 * dt;
-		if( SDL_GetKeyState(NULL)[SDLK_RIGHT] )
+		if( SDL_GetKeyState(NULL)[SDLK_RIGHT] || SDL_GetKeyState(NULL)[SDLK_d] )
 			x_speed += 100000 * dt;
-		if( SDL_GetKeyState(NULL)[SDLK_UP] )
+		if( SDL_GetKeyState(NULL)[SDLK_UP] || SDL_GetKeyState(NULL)[SDLK_w] )
 			y_speed -= 100000 * dt;
-		if( SDL_GetKeyState(NULL)[SDLK_DOWN] )
+		if( SDL_GetKeyState(NULL)[SDLK_DOWN] || SDL_GetKeyState(NULL)[SDLK_s] )
 			y_speed += 100000 * dt;
 
 		ballfield_move(balls, x_speed, y_speed, z_speed);

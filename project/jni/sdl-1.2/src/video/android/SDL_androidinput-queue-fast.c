@@ -78,7 +78,7 @@ extern void SDL_ANDROID_MainThreadPushMouseMotion(int x, int y)
 {
 	SDL_ANDROID_currentMouseX = x;
 	SDL_ANDROID_currentMouseY = y;
-
+	__android_log_print(ANDROID_LOG_INFO, "libSDL", "MainThreadPushMouseMotion: %4d %4d", x, y);
 	SDL_SendMouseMotion( ANDROID_CurrentWindow, 0, x, y );
 }
 
@@ -306,7 +306,6 @@ void SDL_ANDROID_DeferredTextInput()
 	{
 		if( SDL_ANDROID_TextInputFinished )
 		{
-			SDL_ANDROID_TextInputFinished = 0;
 			SDL_ANDROID_IsScreenKeyboardShownFlag = 0;
 		}
 	}

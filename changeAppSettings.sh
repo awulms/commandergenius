@@ -60,6 +60,7 @@ if [ "$SwVideoMode" = "y" ]; then
 	NeedDepthBuffer=n
 	NeedStencilBuffer=n
 	NeedGles2=n
+	NeedGles3=n
 fi
 
 
@@ -145,11 +146,13 @@ echo "# Application user-visible version name (string)" >> AndroidAppSettings.cf
 echo AppVersionName=\"$AppVersionName\" >> AndroidAppSettings.cfg
 echo >> AndroidAppSettings.cfg
 echo "# Specify path to download application data in zip archive in the form 'Description|URL|MirrorURL^Description2|URL2|MirrorURL2^...'" >> AndroidAppSettings.cfg
-echo "# If you'll start Description with '!' symbol it will be enabled by default, other downloads should be selected by user from startup config menu" >> AndroidAppSettings.cfg
+echo "# If you'll start Description with '!' symbol it will be enabled by default, '!!' will also hide the entry from the menu, so it cannot be disabled" >> AndroidAppSettings.cfg
 echo "# If the URL in in the form ':dir/file.dat:http://URL/' it will be downloaded as binary BLOB to the application dir and not unzipped" >> AndroidAppSettings.cfg
-echo "# If the URL does not contain 'http://' it is treated as file from 'project/jni/application/src/AndroidData' dir -" >> AndroidAppSettings.cfg
-echo "# these files are put inside .apk package by build system" >> AndroidAppSettings.cfg
-echo "# You can specify Google Play expansion files in the form 'obb:main.12345' or 'obb:patch.12345' where 12345 is the app version, first associated with the file" >> AndroidAppSettings.cfg
+echo "# If the URL does not contain 'http://' or 'https://', it is treated as file from 'project/jni/application/src/AndroidData' dir -" >> AndroidAppSettings.cfg
+echo "# these files are put inside .apk package by the build system" >> AndroidAppSettings.cfg
+echo "# You can specify Google Play expansion files in the form 'obb:main.12345' or 'obb:patch.12345' where 12345 is the app version for obb file" >> AndroidAppSettings.cfg
+echo "# You can use .zip.xz archives for better compression, but you need to add 'lzma' to CompiledLibraries" >> AndroidAppSettings.cfg
+echo "# Generate .zip.xz files like this: zip -0 -r data.zip your-data/* ; xz -8 data.zip" >> AndroidAppSettings.cfg
 echo AppDataDownloadUrl=\"$AppDataDownloadUrl\" >> AndroidAppSettings.cfg
 echo >> AndroidAppSettings.cfg
 echo "# Reset SDL config when updating application to the new version (y) / (n)" >> AndroidAppSettings.cfg
@@ -178,12 +181,16 @@ echo >> AndroidAppSettings.cfg
 echo "# Enable OpenGL stencil buffer (needed only for 3-d applications, small speed decrease) (y) or (n)" >> AndroidAppSettings.cfg
 echo NeedStencilBuffer=$NeedStencilBuffer >> AndroidAppSettings.cfg
 echo >> AndroidAppSettings.cfg
-echo "# Try to use GLES 2.x context - will revert to GLES 1.X if unsupported by device" >> AndroidAppSettings.cfg
+echo "# Use GLES 2.x context" >> AndroidAppSettings.cfg
 echo "# you need this option only if you're developing 3-d app (y) or (n)" >> AndroidAppSettings.cfg
 echo NeedGles2=$NeedGles2 >> AndroidAppSettings.cfg
 echo >> AndroidAppSettings.cfg
-echo "# Use glshim library for provide OpenGL 1.x functionality to OpenGL ES accelerated cards (y) or (n)" >> AndroidAppSettings.cfg
-echo UseGlshim=$UseGlshim >> AndroidAppSettings.cfg
+echo "# Use GLES 3.x context" >> AndroidAppSettings.cfg
+echo "# you need this option only if you're developing 3-d app (y) or (n)" >> AndroidAppSettings.cfg
+echo NeedGles3=$NeedGles3 >> AndroidAppSettings.cfg
+echo >> AndroidAppSettings.cfg
+echo "# Use gl4es library for provide OpenGL 1.x functionality to OpenGL ES accelerated cards (y) or (n)" >> AndroidAppSettings.cfg
+echo UseGl4es=$UseGl4es >> AndroidAppSettings.cfg
 echo >> AndroidAppSettings.cfg
 echo "# Application uses software video buffer - you're calling SDL_SetVideoMode() without SDL_HWSURFACE and without SDL_OPENGL," >> AndroidAppSettings.cfg
 echo "# this will allow small speed optimization. Enable this even when you're using SDL_HWSURFACE. (y) or (n)" >> AndroidAppSettings.cfg
@@ -305,14 +312,20 @@ echo "# API is defined in file SDL_android.h: int SDL_ANDROID_OpenAudioRecording
 echo "# This option will add additional permission to Android manifest (y)/(n)" >> AndroidAppSettings.cfg
 echo AppRecordsAudio=$AppRecordsAudio >> AndroidAppSettings.cfg
 echo >> AndroidAppSettings.cfg
-echo "# Application needs to access SD card. Always disable it, unless you want to access user photos and downloads. (y) / (n)" >> AndroidAppSettings.cfg
+echo "# Application needs read/write access SD card. Always disable it, unless you want to access user photos and downloads. (y) / (n)" >> AndroidAppSettings.cfg
 echo AccessSdCard=$AccessSdCard >> AndroidAppSettings.cfg
+echo >> AndroidAppSettings.cfg
+echo "# Application needs to read it's own OBB file. Enable this if you are using Play Store expansion files. (y) / (n)" >> AndroidAppSettings.cfg
+echo ReadObbFile=$ReadObbFile >> AndroidAppSettings.cfg
 echo >> AndroidAppSettings.cfg
 echo "# Application needs Internet access. If you disable it, you'll have to bundle all your data files inside .apk (y) / (n)" >> AndroidAppSettings.cfg
 echo AccessInternet=$AccessInternet >> AndroidAppSettings.cfg
 echo >> AndroidAppSettings.cfg
 echo "# Immersive mode - Android will hide on-screen Home/Back keys. Looks bad if you invoke Android keyboard. (y) / (n)" >> AndroidAppSettings.cfg
 echo ImmersiveMode=$ImmersiveMode >> AndroidAppSettings.cfg
+echo >> AndroidAppSettings.cfg
+echo "# Hide Android system mouse cursor image when USB mouse is attached (y) or (n) - the app must draw it's own mouse cursor" >> AndroidAppSettings.cfg
+echo HideSystemMousePointer=$HideSystemMousePointer >> AndroidAppSettings.cfg
 echo >> AndroidAppSettings.cfg
 echo "# Application implements Android-specific routines to put to background, and will not draw anything to screen" >> AndroidAppSettings.cfg
 echo "# between SDL_ACTIVEEVENT lost / gained notifications - you should check for them" >> AndroidAppSettings.cfg
@@ -350,8 +363,17 @@ echo "# 9 = Nintendo64 from RetroArch" >> AndroidAppSettings.cfg
 echo TouchscreenKeysTheme=$TouchscreenKeysTheme >> AndroidAppSettings.cfg
 echo >> AndroidAppSettings.cfg
 echo "# Redefine gamepad keys to SDL keysyms, button order is:" >> AndroidAppSettings.cfg
-echo "# A B X Y L1 R1 L2 R2 LThumb RThumb" >> AndroidAppSettings.cfg
+echo "# A B X Y L1 R1 L2 R2 LThumb RThumb Start Select Up Down Left Right LThumbUp LThumbDown LThumbLeft LThumbRight RThumbUp RThumbDown RThumbLeft RThumbRight" >> AndroidAppSettings.cfg
 echo RedefinedKeysGamepad=\"$RedefinedKeysGamepad\" >> AndroidAppSettings.cfg
+echo >> AndroidAppSettings.cfg
+echo "# Redefine keys for the second gamepad, same as the first gamepad if not set:" >> AndroidAppSettings.cfg
+echo RedefinedKeysSecondGamepad=\"$RedefinedKeysSecondGamepad\" >> AndroidAppSettings.cfg
+echo >> AndroidAppSettings.cfg
+echo "# Redefine keys for the third gamepad, same as the first gamepad if not set:" >> AndroidAppSettings.cfg
+echo RedefinedKeysThirdGamepad=\"$RedefinedKeysThirdGamepad\" >> AndroidAppSettings.cfg
+echo >> AndroidAppSettings.cfg
+echo "# Redefine keys for the fourth gamepad, same as the first gamepad if not set:" >> AndroidAppSettings.cfg
+echo RedefinedKeysFourthGamepad=\"$RedefinedKeysFourthGamepad\" >> AndroidAppSettings.cfg
 echo >> AndroidAppSettings.cfg
 echo "# How long to show startup menu button, in msec, 0 to disable startup menu" >> AndroidAppSettings.cfg
 echo StartupMenuButtonTimeout=$StartupMenuButtonTimeout >> AndroidAppSettings.cfg
@@ -372,8 +394,14 @@ echo >> AndroidAppSettings.cfg
 echo "# GCC version, or 'clang' for CLANG" >> AndroidAppSettings.cfg
 echo NDK_TOOLCHAIN_VERSION=$NDK_TOOLCHAIN_VERSION >> AndroidAppSettings.cfg
 echo >> AndroidAppSettings.cfg
+echo "# Android platform version." >> AndroidAppSettings.cfg
+echo "# android-16 = Android 4.1, the earliest supported version in NDK r18." >> AndroidAppSettings.cfg
+echo "# android-18 = Android 4.3, the first version supporting GLES3." >> AndroidAppSettings.cfg
+echo "# android-21 = Android 5.1, the first version with SO_REUSEPORT defined." >> AndroidAppSettings.cfg
+echo APP_PLATFORM=$APP_PLATFORM >> AndroidAppSettings.cfg
+echo >> AndroidAppSettings.cfg
 echo "# Specify architectures to compile, 'all' or 'y' to compile for all architectures." >> AndroidAppSettings.cfg
-echo "# Available architectures: armeabi armeabi-v7a x86 mips arm64-v8a" >> AndroidAppSettings.cfg
+echo "# Available architectures: armeabi-v7a arm64-v8a x86 x86_64" >> AndroidAppSettings.cfg
 echo MultiABI=\'$MultiABI\' >> AndroidAppSettings.cfg
 echo >> AndroidAppSettings.cfg
 echo "# Optional shared libraries to compile - removing some of them will save space" >> AndroidAppSettings.cfg
@@ -386,6 +414,9 @@ echo CustomBuildScript=$CustomBuildScript >> AndroidAppSettings.cfg
 echo >> AndroidAppSettings.cfg
 echo "# Aditional CFLAGS for application" >> AndroidAppSettings.cfg
 echo AppCflags=\'$AppCflags\' >> AndroidAppSettings.cfg
+echo >> AndroidAppSettings.cfg
+echo "# Aditional C++-specific compiler flags for application, added after AppCflags" >> AndroidAppSettings.cfg
+echo AppCppflags=\'$AppCppflags\' >> AndroidAppSettings.cfg
 echo >> AndroidAppSettings.cfg
 echo "# Additional LDFLAGS for application" >> AndroidAppSettings.cfg
 echo AppLdflags=\'$AppLdflags\' >> AndroidAppSettings.cfg
@@ -417,6 +448,9 @@ echo AdmobBannerSize=$AdmobBannerSize >> AndroidAppSettings.cfg
 echo >> AndroidAppSettings.cfg
 echo "# Google Play Game Services application ID, required for cloud saves to work" >> AndroidAppSettings.cfg
 echo GooglePlayGameServicesId=$GooglePlayGameServicesId >> AndroidAppSettings.cfg
+echo >> AndroidAppSettings.cfg
+echo "# The app will open files with following extension, file path will be added to commandline params" >> AndroidAppSettings.cfg
+echo AppOpenFileExtension=\'$AppOpenFileExtension\' >> AndroidAppSettings.cfg
 echo >> AndroidAppSettings.cfg
 fi
 
@@ -480,17 +514,11 @@ else
 	NeedStencilBuffer=false
 fi
 
-if [ "$NeedGles2" = "y" ] ; then
-	NeedGles2=true
+if [ "$UseGl4es" = "y" ] ; then
+	UseGl4esCFlags=-DUSE_GL4ES=1
 else
-	NeedGles2=false
-fi
-
-if [ "$UseGlshim" = "y" ] ; then
-	UseGlshimCFlags=-DUSE_GLSHIM=1
-else
-	UseGlshim=
-	UseGlshimCFlags=
+	UseGl4es=
+	UseGl4esCFlags=
 fi
 
 if [ "$SwVideoMode" = "y" ] ; then
@@ -691,9 +719,31 @@ done
 
 KEY2=0
 for KEY in $RedefinedKeysGamepad; do
-	RedefinedKeycodesGamepad="$RedefinedKeycodesGamepad -DSDL_ANDROID_GAMEPAD_KEYCODE_$KEY2=$KEY"
+	RedefinedKeycodesGamepad="$RedefinedKeycodesGamepad -DSDL_ANDROID_GAMEPAD_0_KEYCODE_$KEY2=$KEY"
 	KEY2=`expr $KEY2 '+' 1`
 done
+
+KEY2=0
+for KEY in $RedefinedKeysSecondGamepad; do
+	RedefinedKeycodesGamepad="$RedefinedKeycodesGamepad -DSDL_ANDROID_GAMEPAD_1_KEYCODE_$KEY2=$KEY"
+	KEY2=`expr $KEY2 '+' 1`
+done
+
+KEY2=0
+for KEY in $RedefinedKeysThirdGamepad; do
+	RedefinedKeycodesGamepad="$RedefinedKeycodesGamepad -DSDL_ANDROID_GAMEPAD_2_KEYCODE_$KEY2=$KEY"
+	KEY2=`expr $KEY2 '+' 1`
+done
+
+KEY2=0
+for KEY in $RedefinedKeysFourthGamepad; do
+	RedefinedKeycodesGamepad="$RedefinedKeycodesGamepad -DSDL_ANDROID_GAMEPAD_3_KEYCODE_$KEY2=$KEY"
+	KEY2=`expr $KEY2 '+' 1`
+done
+
+if [ "$APP_PLATFORM" = "" ]; then
+	APP_PLATFORM=android-16
+fi
 
 if [ "$MultiABI" = "y" ] ; then
 	MultiABI="all"
@@ -704,7 +754,11 @@ else
 fi
 
 LibrariesToLoad="\\\"sdl_native_helpers\\\", \\\"sdl-$LibSdlVersion\\\""
-StaticLibraries=`grep 'APP_AVAILABLE_STATIC_LIBS' project/jni/SettingsTemplate.mk | sed 's/.*=\(.*\)/\1/'`
+StaticLibraries="`echo '
+include project/jni/SettingsTemplate.mk
+all:
+	@echo $(APP_AVAILABLE_STATIC_LIBS)
+.PHONY: all' | make -s -f -`"
 for lib in $CompiledLibraries; do
 	process=true
 	for lib1 in $StaticLibraries; do
@@ -791,6 +845,10 @@ else
 	cat $F | sed "s/^package .*;/package $AppFullName;/" >> project/src/Advertisement.java
 fi
 
+cat project/app/build-template.gradle | \
+	sed 's/applicationId .*/applicationId "'"$AppFullName"'"/' > \
+	project/app/build.gradle
+
 echo "-keep class $AppFullName.** { *; }" > project/proguard-local.cfg
 
 if [ "$AppRecordsAudio" = "n" -o -z "$AppRecordsAudio" ] ; then
@@ -814,18 +872,59 @@ esac
 
 if [ "$AccessSdCard" = "y" ]; then
 	$SEDI "/==NOT_EXTERNAL_STORAGE==/ d" project/AndroidManifest.xml
+	$SEDI "/==READ_OBB==/ d" project/AndroidManifest.xml
 else
-	$SEDI "/==EXTERNAL_STORAGE==/ d" project/AndroidManifest.xml # Disabled by default
+	if [ "$ReadObbFile" = "y" ]; then
+		$SEDI "/==EXTERNAL_STORAGE==/ d" project/AndroidManifest.xml # Disabled by default
+		$SEDI "/==NOT_EXTERNAL_STORAGE==/ d" project/AndroidManifest.xml
+	else
+		$SEDI "/==EXTERNAL_STORAGE==/ d" project/AndroidManifest.xml # Disabled by default
+		$SEDI "/==READ_OBB==/ d" project/AndroidManifest.xml
+	fi
 fi
 
 if [ "$AccessInternet" = "n" ]; then
 	$SEDI "/==INTERNET==/ d" project/AndroidManifest.xml
 fi
 
+if [ -z "$AppOpenFileExtension" ]; then
+	$SEDI "/==OPENFILE==/ d" project/AndroidManifest.xml
+else
+	EXTS="`for EXT in $AppOpenFileExtension; do echo -n '\\\\1'$EXT'\\\\2' ; done`"
+	$SEDI "s/\(.*\)==OPENFILE-EXT==\(.*\)/$EXTS/g" project/AndroidManifest.xml
+fi
+
 if [ "$ImmersiveMode" = "n" ]; then
 	ImmersiveMode=false
 else
 	ImmersiveMode=true
+fi
+
+if [ "$HideSystemMousePointer" = "y" ]; then
+	HideSystemMousePointer=true
+else
+	HideSystemMousePointer=false
+fi
+
+GLESLib=-lGLESv1_CM
+GLESVersion=-DSDL_VIDEO_OPENGL_ES_VERSION=1
+
+if [ "$NeedGles2" = "y" ] ; then
+	NeedGles2=true
+	GLESLib=-lGLESv2
+	GLESVersion=-DSDL_VIDEO_OPENGL_ES_VERSION=2
+else
+	NeedGles2=false
+	$SEDI "/==GLES2==/ d" project/AndroidManifest.xml
+fi
+
+if [ "$NeedGles3" = "y" ] ; then
+	NeedGles3=true
+	GLESLib=-lGLESv3
+	GLESVersion=-DSDL_VIDEO_OPENGL_ES_VERSION=3
+else
+	NeedGles3=false
+	$SEDI "/==GLES3==/ d" project/AndroidManifest.xml
 fi
 
 echo Patching project/src/Globals.java
@@ -845,6 +944,7 @@ $SEDI "s/public static int VideoDepthBpp = .*;/public static int VideoDepthBpp =
 $SEDI "s/public static boolean NeedDepthBuffer = .*;/public static boolean NeedDepthBuffer = $NeedDepthBuffer;/" project/src/Globals.java
 $SEDI "s/public static boolean NeedStencilBuffer = .*;/public static boolean NeedStencilBuffer = $NeedStencilBuffer;/" project/src/Globals.java
 $SEDI "s/public static boolean NeedGles2 = .*;/public static boolean NeedGles2 = $NeedGles2;/" project/src/Globals.java
+$SEDI "s/public static boolean NeedGles3 = .*;/public static boolean NeedGles3 = $NeedGles3;/" project/src/Globals.java
 $SEDI "s/public static boolean CompatibilityHacksVideo = .*;/public static boolean CompatibilityHacksVideo = $CompatibilityHacksForceScreenUpdate;/" project/src/Globals.java
 $SEDI "s/public static boolean CompatibilityHacksStaticInit = .*;/public static boolean CompatibilityHacksStaticInit = $CompatibilityHacksStaticInit;/" project/src/Globals.java
 $SEDI "s/public static boolean CompatibilityHacksTextInputEmulatesHwKeyboard = .*;/public static boolean CompatibilityHacksTextInputEmulatesHwKeyboard = $CompatibilityHacksTextInputEmulatesHwKeyboard;/" project/src/Globals.java
@@ -875,6 +975,7 @@ $SEDI "s/public static boolean AppUsesMultitouch = .*;/public static boolean App
 $SEDI "s/public static boolean NonBlockingSwapBuffers = .*;/public static boolean NonBlockingSwapBuffers = $NonBlockingSwapBuffers;/" project/src/Globals.java
 $SEDI "s/public static boolean ResetSdlConfigForThisVersion = .*;/public static boolean ResetSdlConfigForThisVersion = $ResetSdlConfigForThisVersion;/" project/src/Globals.java
 $SEDI "s/public static boolean ImmersiveMode = .*;/public static boolean ImmersiveMode = $ImmersiveMode;/" project/src/Globals.java
+$SEDI "s/public static boolean HideSystemMousePointer = .*;/public static boolean HideSystemMousePointer = $HideSystemMousePointer;/" project/src/Globals.java
 $SEDI "s|public static String DeleteFilesOnUpgrade = .*;|public static String DeleteFilesOnUpgrade = \"$DeleteFilesOnUpgrade\";|" project/src/Globals.java
 $SEDI "s/public static int AppTouchscreenKeyboardKeysAmount = .*;/public static int AppTouchscreenKeyboardKeysAmount = $AppTouchscreenKeyboardKeysAmount;/" project/src/Globals.java
 $SEDI "s@public static String\\[\\] AppTouchscreenKeyboardKeysNames = .*;@public static String[] AppTouchscreenKeyboardKeysNames = \"$RedefinedKeysScreenKbNames\".split(\" \");@" project/src/Globals.java
@@ -896,16 +997,18 @@ $SEDI "s/public static String AppMainLibraries.*/public static String AppMainLib
 echo Patching project/jni/Settings.mk
 echo '# DO NOT EDIT THIS FILE - it is automatically generated, edit file SettingsTemplate.mk' > project/jni/Settings.mk
 cat project/jni/SettingsTemplate.mk | \
-	sed "s/APP_MODULES := .*/APP_MODULES := application sdl-$LibSdlVersion sdl_main sdl_native_helpers jpeg png ogg flac vorbis freetype $CompiledLibraries/" | \
+	sed "s/APP_MODULES := .*/APP_MODULES := sdl-$LibSdlVersion sdl_main sdl_native_helpers jpeg png ogg flac vorbis freetype $CompiledLibraries application/" | \
 	sed "s/APP_ABI := .*/APP_ABI := $MultiABI/" | \
 	sed "s/SDL_JAVA_PACKAGE_PATH := .*/SDL_JAVA_PACKAGE_PATH := $AppFullNameUnderscored/" | \
 	sed "s^SDL_CURDIR_PATH := .*^SDL_CURDIR_PATH := $DataPath^" | \
 	sed "s^SDL_VIDEO_RENDER_RESIZE := .*^SDL_VIDEO_RENDER_RESIZE := $SdlVideoResize^" | \
 	sed "s^COMPILED_LIBRARIES := .*^COMPILED_LIBRARIES := $CompiledLibraries^" | \
 	sed "s^APPLICATION_ADDITIONAL_CFLAGS :=.*^APPLICATION_ADDITIONAL_CFLAGS := $AppCflags^" | \
+	sed "s^APPLICATION_ADDITIONAL_CPPFLAGS :=.*^APPLICATION_ADDITIONAL_CPPFLAGS := $AppCppflags^" | \
 	sed "s^APPLICATION_ADDITIONAL_LDFLAGS :=.*^APPLICATION_ADDITIONAL_LDFLAGS := $AppLdflags^" | \
+	sed "s^APPLICATION_GLES_LIBRARY :=.*^APPLICATION_GLES_LIBRARY := $GLESLib^" | \
 	sed "s^APPLICATION_OVERLAPS_SYSTEM_HEADERS :=.*^APPLICATION_OVERLAPS_SYSTEM_HEADERS := $AppOverlapsSystemHeaders^" | \
-	sed "s^USE_GLSHIM :=.*^USE_GLSHIM := $UseGlshim^" | \
+	sed "s^USE_GL4ES :=.*^USE_GL4ES := $UseGl4es^" | \
 	sed "s^SDL_ADDITIONAL_CFLAGS :=.*^SDL_ADDITIONAL_CFLAGS := \
 		$RedefinedKeycodes \
 		$RedefinedKeycodesScreenKb \
@@ -915,12 +1018,14 @@ cat project/jni/SettingsTemplate.mk | \
 		$CompatibilityHacksSlowCompatibleEventQueue \
 		$CompatibilityHacksTouchscreenKeyboardSaveRestoreOpenGLState \
 		$CompatibilityHacksProperUsageOfSDL_UpdateRects \
-		$UseGlshimCFlags^" | \
+		$UseGl4esCFlags \
+		$GLESVersion^" | \
 	sed "s^APPLICATION_SUBDIRS_BUILD :=.*^APPLICATION_SUBDIRS_BUILD := $AppSubdirsBuild^" | \
 	sed "s^APPLICATION_BUILD_EXCLUDE :=.*^APPLICATION_BUILD_EXCLUDE := $AppBuildExclude^" | \
 	sed "s^APPLICATION_CUSTOM_BUILD_SCRIPT :=.*^APPLICATION_CUSTOM_BUILD_SCRIPT := $CustomBuildScript^" | \
 	sed "s^SDL_VERSION :=.*^SDL_VERSION := $LibSdlVersion^" | \
-	sed "s^NDK_TOOLCHAIN_VERSION :=.*^NDK_TOOLCHAIN_VERSION := $NDK_TOOLCHAIN_VERSION^" >> \
+	sed "s^NDK_TOOLCHAIN_VERSION :=.*^NDK_TOOLCHAIN_VERSION := $NDK_TOOLCHAIN_VERSION^" | \
+	sed "s^APP_PLATFORM :=.*^APP_PLATFORM := $APP_PLATFORM^" >> \
 	project/jni/Settings.mk
 
 echo Patching strings.xml
@@ -935,16 +1040,15 @@ done
 cd ../../..
 
 SDK_DIR=`grep '^sdk.dir' project/local.properties | sed 's/.*=//'`
+[ -z "$SDK_DIR" ] && SDK_DIR=`which android | sed 's@/tools/android$@@'`
 mkdir -p project/libs
+echo "sdk.dir=$SDK_DIR" > project/local.properties
+echo 'proguard.config=proguard.cfg;proguard-local.cfg' >> project/local.properties
 
 if [ "$GooglePlayGameServicesId" = "n" -o -z "$GooglePlayGameServicesId" ] ; then
 	$SEDI "/==GOOGLEPLAYGAMESERVICES==/ d" project/AndroidManifest.xml
+	$SEDI "/==GOOGLEPLAYGAMESERVICES==/ d" project/app/build.gradle
 	GooglePlayGameServicesId=""
-	grep 'google-play-services' project/local.properties > /dev/null && {
-		$SEDI 's/.*google-play-services.*//g' project/local.properties
-		rm -f project/libs/android-support-v4.jar
-		rm -f project/libs/play-services-games.jar
-	}
 else
 	for F in $JAVA_SRC_PATH/googleplaygameservices/*.java; do
 		OUT=`echo $F | sed 's@.*/@@'` # basename tool is not available everywhere
@@ -952,61 +1056,54 @@ else
 		echo '// DO NOT EDIT THIS FILE - it is automatically generated, edit file under $JAVA_SRC_PATH dir' > project/src/$OUT
 		cat $F | sed "s/^package .*;/package $AppFullName;/" >> project/src/$OUT
 	done
+
 	$SEDI "s/==GOOGLEPLAYGAMESERVICES_APP_ID==/$GooglePlayGameServicesId/g" project/res/values/strings.xml
-	grep 'google-play-services' project/local.properties > /dev/null || {
-		# Ant is way too smart, and adds current project path in front of the ${sdk.dir}
-		echo 'android.library.reference.1=../../../../../../../../../../../../../../${sdk.dir}/extras/google/google_play_services/libproject/google-play-services_lib' >> project/local.properties
-		echo 'android.library.reference.2=../../../../../../../../../../../../../../${sdk.dir}/extras/android/compatibility/v7/mediarouter' >> project/local.properties
-		echo 'android.library.reference.3=../../../../../../../../../../../../../../${sdk.dir}/extras/android/compatibility/v7/appcompat' >> project/local.properties
-		echo 'android.library.reference.4=../../../../../../../../../../../../../../${sdk.dir}/extras/android/compatibility/v7/palette' >> project/local.properties
-		echo 'proguard.config=proguard.cfg;proguard-local.cfg' >> project/local.properties
-		ln -s -f $SDK_DIR/extras/android/compatibility/v4/android-support-v4.jar project/libs
+
+	PROGUARD=`which android`
+	[ -z "$PROGUARD" ] && PROGUARD=$ANDROID_SDK_ROOT/tools/android
+	PROGUARD=`dirname $PROGUARD`/proguard/lib/proguard.jar
+	java -jar $PROGUARD | grep 'ProGuard, version 5.3' || {
+		echo "Error: ProGuard is too old"
+		echo "You need to update ProGuard. Download it here:"
+		echo "https://sourceforge.net/projects/proguard/files/proguard/5.3/proguard5.3.3.zip"
+		echo "Unpack it, then place file proguard.jar to $PROGUARD"
+		exit 1
 	}
-	[ -e $SDK_DIR/extras/google/google_play_services/libproject/google-play-services_lib/build.xml ] || \
-		android update project -t android-23 -p $SDK_DIR/extras/google/google_play_services/libproject/google-play-services_lib
-	[ -e $SDK_DIR/extras/android/compatibility/v7/mediarouter/build.xml ] || { \
-		android update project -t android-23 -p $SDK_DIR/extras/android/compatibility/v7/mediarouter
-		echo 'android.library.reference.1=../../../../../../../../../../../../../../${sdk.dir}/extras/android/compatibility/v7/appcompat' >> $SDK_DIR/extras/android/compatibility/v7/mediarouter/local.properties
-	}
-	[ -e $SDK_DIR/extras/android/compatibility/v7/appcompat/build.xml ] || \
-		android update project -t android-23 -p $SDK_DIR/extras/android/compatibility/v7/appcompat
-	[ -e $SDK_DIR/extras/android/compatibility/v7/palette/build.xml ] || \
-		android update project -t android-23 -p $SDK_DIR/extras/android/compatibility/v7/palette && \
-		mkdir -p $SDK_DIR/extras/android/compatibility/v7/palette/src
 fi
 
 if [ -e project/jni/application/src/project.patch ]; then patch -p1 --dry-run -f -R < project/jni/application/src/project.patch > /dev/null 2>&1 || patch -p1 --no-backup-if-mismatch < project/jni/application/src/project.patch || exit 1 ; fi
 
 echo Cleaning up dependencies
+
 rm -rf project/libs/*/* project/gen
-for OUT in obj; do
-rm -rf project/$OUT/local/*/objs*/sdl_main/* project/$OUT/local/*/libsdl_main.so
-rm -rf project/$OUT/local/*/libsdl-*.so
-rm -rf project/$OUT/local/*/libsdl_*.so
-rm -rf project/$OUT/local/*/objs*/sdl-*/src/*/android
-rm -rf project/$OUT/local/*/objs*/sdl-*/src/video/SDL_video.o
-rm -rf project/$OUT/local/*/objs*/sdl-*/SDL_renderer_gles.o
-rm -rf project/$OUT/local/*/objs*/sdl_*
+rm -rf project/obj/local/*/objs*/sdl_main/* project/$OUT/local/*/libsdl_main.so
+rm -rf project/obj/local/*/libsdl-*.so
+rm -rf project/obj/local/*/libsdl_*.so
+rm -rf project/obj/local/*/objs*/sdl-*/src/*/android
+rm -rf project/obj/local/*/objs*/sdl-*/src/video/SDL_video.o
+rm -rf project/obj/local/*/objs*/sdl-*/SDL_renderer_gles.o
+rm -rf project/obj/local/*/objs*/sdl_*
 rm -rf project/obj/local/*/objs*/lzma/src/XZInputStream.o
 rm -rf project/obj/local/*/objs*/liblzma.so
-# Do not rebuild several huge libraries that do not depend on SDL version
-for LIB in freetype intl jpeg png lua mad tremor xerces xml2 curl lua mikmod \
-			boost boost_signals boost_thread boost_filesystem boost_date_time boost_system boost_regex boost_iostreams boost_program_options \
-			ffmpeg swscale avcodec avdevice avresample avutil avfilter swresample avformat; do
-	for ARCH in armeabi armeabi-v7a; do
-		if [ -e "project/$OUT/local/$ARCH/objs*/$LIB" ] ; then
-			find project/$OUT/local/$ARCH/objs*/$LIB -name "*.o" | xargs touch -c
-		fi
-	done
-done
-done
+
 rm -rf project/bin/classes
 rm -rf project/bin/res
+rm -rf project/app/build
+
+# Generate OUYA icon, for that one user who still got an OUYA in his living room and won't throw it away just because someone else decides that it's dead
+rm -rf project/res/drawable-xhdpi/ouya_icon.png
+if which convert > /dev/null; then
+	mkdir -p project/res/drawable-xhdpi
+	convert project/res/drawable/icon.png -resize '732x412' -background none -gravity center -extent '732x412' project/res/drawable-xhdpi/ouya_icon.png
+else
+	echo "Install ImageMagick to auto-resize Ouya icon from icon.png"
+fi
 
 ./copyAssets.sh || exit 1
 
 rm -rf project/jni/android-support
-ln -s "`which ndk-build | sed 's@/ndk-build@@'`/sources/android/support" project/jni/android-support
+echo "$NDK_TOOLCHAIN_VERSION" | grep 'clang' > /dev/null || \
+	ln -s "`which ndk-build | sed 's@/ndk-build@@'`/sources/android/support" project/jni/android-support
 
 rm -rf project/res/drawable/banner.png
 if [ -e project/jni/application/src/banner.png ]; then
@@ -1021,6 +1118,11 @@ fi
 
 echo Compiling prebuilt libraries
 
-make -C project/jni -f Makefile.prebuilt
+#if echo "$CompiledLibraries" | grep -E 'iconv|charset|icu|crypto|ssl|harfbuzz' > /dev/null; then
+	make -C project/jni -f Makefile.prebuilt
+#fi
+if echo "$CompiledLibraries" | grep 'boost' > /dev/null; then
+	make -C project/jni -f Makefile.prebuilt boost
+fi
 
 echo Done

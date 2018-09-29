@@ -36,9 +36,10 @@ LOCAL_C_INCLUDES += $(LOCAL_PATH)/../sdl-$(SDL_VERSION)/include
 LOCAL_C_INCLUDES += $(foreach L, $(COMPILED_LIBRARIES), $(LOCAL_PATH)/../$(L)/include)
 
 LOCAL_CFLAGS += $(APPLICATION_ADDITIONAL_CFLAGS)
+LOCAL_CPPFLAGS += $(APPLICATION_ADDITIONAL_CPPFLAGS)
 
 # Change C++ file extension as appropriate
-LOCAL_CPP_EXTENSION := .cpp
+LOCAL_CPP_EXTENSION := .cpp .cxx .cc
 
 ifneq ($(APPLICATION_CUSTOM_BUILD_SCRIPT),)
 LOCAL_SRC_FILES := dummy.c
@@ -50,10 +51,9 @@ LOCAL_STATIC_LIBRARIES := $(filter $(APP_AVAILABLE_STATIC_LIBS), $(COMPILED_LIBR
 
 APP_STL := gnustl_static
 
-LOCAL_LDLIBS := -lGLESv1_CM -ldl -llog -lz # -lgnustl_static
+LOCAL_LDLIBS := $(APPLICATION_GLES_LIBRARY) -ldl -llog -lz # -lgnustl_static
 
 LOCAL_LDFLAGS := -Lobj/local/$(TARGET_ARCH_ABI)
-
 
 LOCAL_LDFLAGS += $(APPLICATION_ADDITIONAL_LDFLAGS)
 
@@ -67,6 +67,7 @@ SDL_APP_LIB_DEPENDS-$(TARGET_ARCH_ABI) += $(foreach LIB, $(LOCAL_STATIC_LIBRARIE
 obj/local/$(TARGET_ARCH_ABI)/libcrypto.so: obj/local/$(TARGET_ARCH_ABI)/libcrypto.so.sdl.0.so
 obj/local/$(TARGET_ARCH_ABI)/libssl.so: obj/local/$(TARGET_ARCH_ABI)/libssl.so.sdl.0.so
 obj/local/$(TARGET_ARCH_ABI)/libcurl.so: obj/local/$(TARGET_ARCH_ABI)/libcurl-sdl.so
+obj/local/$(TARGET_ARCH_ABI)/libexpat.so: obj/local/$(TARGET_ARCH_ABI)/libexpat-sdl.so
 
 include $(BUILD_SHARED_LIBRARY)
 

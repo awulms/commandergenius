@@ -19,7 +19,7 @@
 		android:src="@drawable/icon"
 		android:layout_alignParentLeft="true"
 		android:clickable="true"
-		android:scaleType="centerCrop"
+		android:scaleType="centerInside"
 		android:adjustViewBounds="true"
 	/>
 
@@ -34,10 +34,6 @@
 		android:clickable="true"
 		android:paddingLeft="10dp"
 	/>
-
-<!--
-		android:textAppearance="@android:style/TextAppearance.StatusBar.EventContent.Title"
--->
 
 	<Button
 		android:layout_width="wrap_content"
