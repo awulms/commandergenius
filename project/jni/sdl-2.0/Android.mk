@@ -8,11 +8,7 @@ LOCAL_PATH := $(call my-dir)
 
 include $(CLEAR_VARS)
 
-LOCAL_MODULE := $(lastword $(subst /, ,$(LOCAL_PATH)))
-
-ifndef SDL_JAVA_PACKAGE_PATH
-$(error Please define SDL_JAVA_PACKAGE_PATH to the path of your Java package with dots replaced with underscores, for example "com_example_SanAngeles")
-endif
+LOCAL_MODULE := sdl-2.0
 
 LOCAL_C_INCLUDES := $(LOCAL_PATH)/include
 
@@ -24,7 +20,7 @@ LOCAL_SRC_FILES := \
 	$(wildcard $(LOCAL_PATH)/src/audio/*.c) \
 	$(wildcard $(LOCAL_PATH)/src/audio/android/*.c) \
 	$(wildcard $(LOCAL_PATH)/src/audio/dummy/*.c) \
-	$(LOCAL_PATH)/src/atomic/SDL_atomic.c \
+	$(LOCAL_PATH)/src/atomic/SDL_atomic.c.arm \
 	$(LOCAL_PATH)/src/atomic/SDL_spinlock.c.arm \
 	$(wildcard $(LOCAL_PATH)/src/core/android/*.c) \
 	$(wildcard $(LOCAL_PATH)/src/cpuinfo/*.c) \
@@ -32,9 +28,10 @@ LOCAL_SRC_FILES := \
 	$(wildcard $(LOCAL_PATH)/src/events/*.c) \
 	$(wildcard $(LOCAL_PATH)/src/file/*.c) \
 	$(wildcard $(LOCAL_PATH)/src/haptic/*.c) \
-	$(wildcard $(LOCAL_PATH)/src/haptic/dummy/*.c) \
+	$(wildcard $(LOCAL_PATH)/src/haptic/android/*.c) \
 	$(wildcard $(LOCAL_PATH)/src/joystick/*.c) \
 	$(wildcard $(LOCAL_PATH)/src/joystick/android/*.c) \
+	$(LOCAL_PATH)/src/joystick/steam/SDL_steamcontroller.c \
 	$(wildcard $(LOCAL_PATH)/src/loadso/dlopen/*.c) \
 	$(wildcard $(LOCAL_PATH)/src/power/*.c) \
 	$(wildcard $(LOCAL_PATH)/src/power/android/*.c) \
@@ -50,17 +47,7 @@ LOCAL_SRC_FILES := \
 	$(wildcard $(LOCAL_PATH)/src/video/android/*.c) \
 	$(wildcard $(LOCAL_PATH)/src/test/*.c))
 
-
-LOCAL_CFLAGS := -O3 -D__ANDROID__ -DANDROID \
-	-DSDL_JAVA_PACKAGE_PATH=$(SDL_JAVA_PACKAGE_PATH) \
-	-DSDL_CURDIR_PATH=\"$(SDL_CURDIR_PATH)\" \
-	-DSDL_TRACKBALL_KEYUP_DELAY=$(SDL_TRACKBALL_KEYUP_DELAY) \
-	-DSDL_VIDEO_RENDER_RESIZE_KEEP_ASPECT=$(SDL_VIDEO_RENDER_RESIZE_KEEP_ASPECT) \
-	-DSDL_VIDEO_RENDER_RESIZE=$(SDL_VIDEO_RENDER_RESIZE) \
-	$(SDL_ADDITIONAL_CFLAGS)
-
 LOCAL_CFLAGS += -DGL_GLEXT_PROTOTYPES
-
 LOCAL_LDLIBS := -ldl -lGLESv1_CM -lGLESv2 -llog -landroid
 
 include $(BUILD_SHARED_LIBRARY)
@@ -73,11 +60,27 @@ include $(BUILD_SHARED_LIBRARY)
 
 LOCAL_MODULE := SDL2_static
 
-LOCAL_MODULE_FILENAME := libSDL2
-
-LOCAL_SRC_FILES += $(subst $(LOCAL_PATH)/,,$(LOCAL_PATH)/src/main/android/SDL_android_main.c)
+LOCAL_MODULE_FILENAME := libsdl-2.0
 
 LOCAL_LDLIBS := 
-LOCAL_EXPORT_LDLIBS := -Wl,--undefined=Java_org_libsdl_app_SDLActivity_nativeInit -ldl -lGLESv1_CM -lGLESv2 -llog -landroid
+LOCAL_EXPORT_LDLIBS := -ldl -lGLESv1_CM -lGLESv2 -llog -landroid
 
 include $(BUILD_STATIC_LIBRARY)
+
+###########################
+#
+# SDL main static library
+#
+###########################
+
+include $(CLEAR_VARS)
+
+LOCAL_C_INCLUDES := $(LOCAL_PATH)/include
+
+LOCAL_MODULE := SDL2_main
+
+LOCAL_MODULE_FILENAME := libSDL2main
+
+include $(BUILD_STATIC_LIBRARY)
+
+

@@ -74,6 +74,7 @@ import android.hardware.SensorEventListener;
 import android.hardware.SensorEvent;
 import android.hardware.Sensor;
 import android.widget.Toast;
+import android.text.InputType;
 
 
 class SettingsMenuMisc extends SettingsMenu
@@ -90,10 +91,10 @@ class SettingsMenuMisc extends SettingsMenu
 			long freePhone = 0;
 			try
 			{
-				StatFs sdcard = new StatFs(Environment.getExternalStorageDirectory().getPath());
-				StatFs phone = new StatFs(Environment.getDataDirectory().getPath());
-				freeSdcard = (long)sdcard.getAvailableBlocks() * sdcard.getBlockSize() / 1024 / 1024;
+				StatFs phone = new StatFs(p.getFilesDir().getAbsolutePath());
 				freePhone = (long)phone.getAvailableBlocks() * phone.getBlockSize() / 1024 / 1024;
+				StatFs sdcard = new StatFs(Settings.SdcardAppPath.get().bestPath(p));
+				freeSdcard = (long)sdcard.getAvailableBlocks() * sdcard.getBlockSize() / 1024 / 1024;
 			}
 			catch(Exception e) {}
 
@@ -114,7 +115,7 @@ class SettingsMenuMisc extends SettingsMenu
 					{
 						Globals.DownloadToSdcard = (item != 0);
 						Globals.DataDir = Globals.DownloadToSdcard ?
-										Settings.SdcardAppPath.getPath(p) :
+										Settings.SdcardAppPath.get().bestPath(p) :
 										p.getFilesDir().getAbsolutePath();
 						goBack(p);
 					}
@@ -147,37 +148,6 @@ class SettingsMenuMisc extends SettingsMenu
 				public void onClick(DialogInterface dialog, int item) 
 				{
 					Globals.DataDir = edit.getText().toString();
-					dialog.dismiss();
-					showCommandLineConfig(p);
-				}
-			});
-			builder.setOnCancelListener(new DialogInterface.OnCancelListener()
-			{
-				public void onCancel(DialogInterface dialog)
-				{
-					goBack(p);
-				}
-			});
-			AlertDialog alert = builder.create();
-			alert.setOwnerActivity(p);
-			alert.show();
-		}
-		static void showCommandLineConfig(final MainActivity p)
-		{
-			AlertDialog.Builder builder = new AlertDialog.Builder(p);
-			builder.setTitle(p.getResources().getString(R.string.storage_commandline));
-
-			final EditText edit = new EditText(p);
-			edit.setFocusableInTouchMode(true);
-			edit.setFocusable(true);
-			edit.setText(Globals.CommandLine);
-			builder.setView(edit);
-
-			builder.setPositiveButton(p.getResources().getString(R.string.ok), new DialogInterface.OnClickListener() 
-			{
-				public void onClick(DialogInterface dialog, int item) 
-				{
-					Globals.CommandLine = edit.getText().toString();
 					dialog.dismiss();
 					goBack(p);
 				}
@@ -357,6 +327,7 @@ class SettingsMenuMisc extends SettingsMenu
 				p.getResources().getString(R.string.video_orientation_autodetect),
 				p.getResources().getString(R.string.video_orientation_vertical),
 				p.getResources().getString(R.string.video_bpp_24),
+				p.getResources().getString(R.string.tv_borders),
 			};
 			boolean defaults[] = {
 				Globals.KeepAspectRatio,
@@ -365,6 +336,7 @@ class SettingsMenuMisc extends SettingsMenu
 				Globals.AutoDetectOrientation,
 				!Globals.HorizontalOrientation,
 				Globals.VideoDepthBpp == 24,
+				Globals.TvBorders,
 			};
 
 			if(Globals.SwVideoMode && !Globals.CompatibilityHacksVideo)
@@ -376,6 +348,7 @@ class SettingsMenuMisc extends SettingsMenu
 					p.getResources().getString(R.string.video_orientation_autodetect),
 					p.getResources().getString(R.string.video_orientation_vertical),
 					p.getResources().getString(R.string.video_bpp_24),
+					p.getResources().getString(R.string.tv_borders),
 					p.getResources().getString(R.string.video_separatethread),
 				};
 				boolean defaults2[] = { 
@@ -385,6 +358,7 @@ class SettingsMenuMisc extends SettingsMenu
 					Globals.AutoDetectOrientation,
 					!Globals.HorizontalOrientation,
 					Globals.VideoDepthBpp == 24,
+					Globals.TvBorders,
 					Globals.MultiThreadedVideo,
 				};
 				items = items2;
@@ -422,49 +396,9 @@ class SettingsMenuMisc extends SettingsMenu
 					if( item == 5 )
 						Globals.VideoDepthBpp = (isChecked ? 24 : 16);
 					if( item == 6 )
+						Globals.TvBorders = isChecked;
+					if( item == 7 )
 						Globals.MultiThreadedVideo = isChecked;
-				}
-			});
-			builder.setPositiveButton(p.getResources().getString(R.string.ok), new DialogInterface.OnClickListener() 
-			{
-				public void onClick(DialogInterface dialog, int item) 
-				{
-					dialog.dismiss();
-					if( debugMenuShowCount > 5 || Globals.OuyaEmulation )
-						showDebugMenu(p);
-					else
-						goBack(p);
-				}
-			});
-			builder.setOnCancelListener(new DialogInterface.OnCancelListener()
-			{
-				public void onCancel(DialogInterface dialog)
-				{
-					goBack(p);
-				}
-			});
-			AlertDialog alert = builder.create();
-			alert.setOwnerActivity(p);
-			alert.show();
-		}
-
-		void showDebugMenu (final MainActivity p)
-		{
-			CharSequence[] items = {
-				"OUYA emulation"
-			};
-			boolean defaults[] = {
-				Globals.OuyaEmulation,
-			};
-
-			AlertDialog.Builder builder = new AlertDialog.Builder(p);
-			builder.setTitle("Debug settings");
-			builder.setMultiChoiceItems(items, defaults, new DialogInterface.OnMultiChoiceClickListener() 
-			{
-				public void onClick(DialogInterface dialog, int item, boolean isChecked) 
-				{
-					if( item == 0 )
-						Globals.OuyaEmulation = isChecked;
 				}
 			});
 			builder.setPositiveButton(p.getResources().getString(R.string.ok), new DialogInterface.OnClickListener() 
@@ -589,37 +523,64 @@ class SettingsMenuMisc extends SettingsMenu
 		}
 	}
 
-	static class GyroscopeCalibration extends Menu implements SensorEventListener
+	static class GyroscopeCalibration extends Menu
 	{
 		String title(final MainActivity p)
 		{
-			return p.getResources().getString(R.string.calibrate_gyroscope);
+			return "";
 		}
 		boolean enabled()
 		{
-			return Globals.AppUsesGyroscope || Globals.MoveMouseWithGyroscope;
+			return false;
 		}
 		void run (final MainActivity p)
 		{
-			if( !(Globals.AppUsesGyroscope || Globals.MoveMouseWithGyroscope) || !AccelerometerReader.gyro.available(p) )
-			{
-				if( Globals.AppUsesGyroscope || Globals.MoveMouseWithGyroscope )
-				{
-					Toast toast = Toast.makeText(p, p.getResources().getString(R.string.calibrate_gyroscope_not_supported), Toast.LENGTH_LONG);
-					toast.show();
-				}
-				goBack(p);
-				return;
-			}
+			goBack(p);
+		}
+	}
+
+	static class CommandlineConfig extends Menu
+	{
+		String title(final MainActivity p)
+		{
+			return p.getResources().getString(R.string.storage_commandline);
+		}
+		void run (final MainActivity p)
+		{
 			AlertDialog.Builder builder = new AlertDialog.Builder(p);
-			builder.setTitle(p.getResources().getString(R.string.calibrate_gyroscope));
-			builder.setMessage(p.getResources().getString(R.string.calibrate_gyroscope_text));
+			builder.setTitle(p.getResources().getString(R.string.storage_commandline));
+
+			final EditText edit = new EditText(p);
+			edit.setFocusableInTouchMode(true);
+			edit.setFocusable(true);
+			if (Globals.CommandLine.length() == 0)
+				Globals.CommandLine = "SDL_app";
+			if (Globals.CommandLine.indexOf(" ") == -1)
+				Globals.CommandLine += " ";
+			edit.setText(Globals.CommandLine.substring(Globals.CommandLine.indexOf(" ")).replace(" ", "\n").replace("	", " "));
+			edit.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+			edit.setMinLines(2);
+			//edit.setMaxLines(100);
+			builder.setView(edit);
+
 			builder.setPositiveButton(p.getResources().getString(R.string.ok), new DialogInterface.OnClickListener() 
 			{
 				public void onClick(DialogInterface dialog, int item) 
 				{
+					Globals.CommandLine = "SDL_app";
+					String args[] = edit.getText().toString().split("\n");
+					boolean firstArg = true;
+					for( String arg: args )
+					{
+						Globals.CommandLine += " ";
+						if( firstArg )
+							Globals.CommandLine += arg;
+						else
+							Globals.CommandLine += arg.replace(" ", "	");
+						firstArg = false;
+					}
 					dialog.dismiss();
-					startCalibration(p);
+					goBack(p);
 				}
 			});
 			builder.setOnCancelListener(new DialogInterface.OnCancelListener()
@@ -632,114 +593,6 @@ class SettingsMenuMisc extends SettingsMenu
 			AlertDialog alert = builder.create();
 			alert.setOwnerActivity(p);
 			alert.show();
-		}
-
-		ImageView img;
-		Bitmap bmp;
-		int numEvents;
-		MainActivity p;
-
-		void startCalibration(final MainActivity _p)
-		{
-			p = _p;
-			img = new ImageView(p);
-			img.setLayoutParams(new ViewGroup.LayoutParams( ViewGroup.LayoutParams.FILL_PARENT, ViewGroup.LayoutParams.FILL_PARENT));
-			img.setScaleType(ImageView.ScaleType.MATRIX);
-			bmp = BitmapFactory.decodeResource( p.getResources(), R.drawable.calibrate );
-			img.setImageBitmap(bmp);
-			Matrix m = new Matrix();
-			RectF src = new RectF(0, 0, bmp.getWidth(), bmp.getHeight());
-			RectF dst = new RectF(	p.getVideoLayout().getWidth()/2 - 50, p.getVideoLayout().getHeight()/2 - 50,
-									p.getVideoLayout().getWidth()/2 + 50, p.getVideoLayout().getHeight()/2 + 50);
-			m.setRectToRect(src, dst, Matrix.ScaleToFit.FILL);
-			img.setImageMatrix(m);
-			p.getVideoLayout().addView(img);
-			numEvents = -10;
-			AccelerometerReader.gyro.x1 = 100;
-			AccelerometerReader.gyro.x2 = -100;
-			AccelerometerReader.gyro.xc = 0;
-			AccelerometerReader.gyro.y1 = 100;
-			AccelerometerReader.gyro.y2 = -100;
-			AccelerometerReader.gyro.yc = 0;
-			AccelerometerReader.gyro.z1 = 100;
-			AccelerometerReader.gyro.z2 = -100;
-			AccelerometerReader.gyro.zc = 0;
-			AccelerometerReader.gyro.registerListener(p, this);
-			(new Thread(new Runnable()
-			{
-				public void run()
-				{
-					for(int count = 1; count < 10; count++)
-					{
-						p.setText("" + count * 10 + "% ...");
-						try {
-							Thread.sleep(300);
-						} catch( Exception e ) {}
-					}
-					finishCalibration(p);
-				}
-			}
-			)).start();
-		}
-
-		public void onSensorChanged(SensorEvent event)
-		{
-			gyroscopeEvent(event.values[0], event.values[1], event.values[2]);
-		}
-		public void onAccuracyChanged(Sensor s, int a)
-		{
-		}
-		void gyroscopeEvent(float x, float y, float z)
-		{
-			numEvents++;
-			if (numEvents <= 0)
-				return; // Skip few initial measurements, they may be incorrect
-			AccelerometerReader.gyro.xc += x;
-			AccelerometerReader.gyro.yc += y;
-			AccelerometerReader.gyro.zc += z;
-			AccelerometerReader.gyro.x1 = Math.min(AccelerometerReader.gyro.x1, x * 1.02f); // Small safety bound coefficient
-			AccelerometerReader.gyro.x2 = Math.max(AccelerometerReader.gyro.x2, x * 1.02f);
-			AccelerometerReader.gyro.y1 = Math.min(AccelerometerReader.gyro.y1, y * 1.02f);
-			AccelerometerReader.gyro.y2 = Math.max(AccelerometerReader.gyro.y2, y * 1.02f);
-			AccelerometerReader.gyro.z1 = Math.min(AccelerometerReader.gyro.z1, z * 1.02f);
-			AccelerometerReader.gyro.z2 = Math.max(AccelerometerReader.gyro.z2, z * 1.02f);
-			final Matrix m = new Matrix();
-			RectF src = new RectF(0, 0, bmp.getWidth(), bmp.getHeight());
-			RectF dst = new RectF(	x * 5000 + p.getVideoLayout().getWidth()/2 - 50, y * 5000 + p.getVideoLayout().getHeight()/2 - 50,
-									x * 5000 + p.getVideoLayout().getWidth()/2 + 50, y * 5000 + p.getVideoLayout().getHeight()/2 + 50);
-			m.setRectToRect(src, dst, Matrix.ScaleToFit.FILL);
-			p.runOnUiThread(new Runnable()
-			{
-				public void run()
-				{
-					img.setImageMatrix(m);
-				}
-			});
-		}
-		void finishCalibration(final MainActivity p)
-		{
-			AccelerometerReader.gyro.unregisterListener(p, this);
-			try {
-				Thread.sleep(200); // Just in case we have pending events
-			} catch( Exception e ) {}
-			if( numEvents > 10 )
-			{
-				AccelerometerReader.gyro.xc /= (float)numEvents;
-				AccelerometerReader.gyro.yc /= (float)numEvents;
-				AccelerometerReader.gyro.zc /= (float)numEvents;
-				Log.i("SDL", "libSDL: gyroscope calibration: " +
-						AccelerometerReader.gyro.x1 + " < " + AccelerometerReader.gyro.xc + " > " + AccelerometerReader.gyro.x2 +  " : " +
-						AccelerometerReader.gyro.y1 + " < " + AccelerometerReader.gyro.yc + " > " + AccelerometerReader.gyro.y2 +  " : " +
-						AccelerometerReader.gyro.z1 + " < " + AccelerometerReader.gyro.zc + " > " + AccelerometerReader.gyro.z2);
-			}
-			p.runOnUiThread(new Runnable()
-			{
-				public void run()
-				{
-					p.getVideoLayout().removeView(img);
-					goBack(p);
-				}
-			});
 		}
 	}
 

@@ -32,6 +32,7 @@ class Globals
 	public static String ApplicationName = "CommanderGenius";
 	public static String AppLibraries[] = { "sdl-1.2", };
 	public static String AppMainLibraries[] = { "application", "sdl_main" };
+	public static String LibraryNamesMap[][] = { { "crypto", "crypto.so.sdl.1" }, { "ssl", "ssl.so.sdl.1" }, { "curl", "curl-sdl" } }; // Because some libraries are named differently to not clash with system libs
 	public static final boolean Using_SDL_1_3 = false;
 	public static final boolean Using_SDL_2_0 = false;
 	public static String[] DataDownloadUrl = { "Data files are 2 Mb|https://sourceforge.net/projects/libsdl-android/files/CommanderGenius/commandergenius-data.zip/download", "High-quality GFX and music - 40 Mb|https://sourceforge.net/projects/libsdl-android/files/CommanderGenius/commandergenius-hqp.zip/download" };
@@ -39,6 +40,7 @@ class Globals
 	public static boolean NeedDepthBuffer = false;
 	public static boolean NeedStencilBuffer = false;
 	public static boolean NeedGles2 = false;
+	public static boolean NeedGles3 = false;
 	public static boolean CompatibilityHacksVideo = false;
 	public static boolean CompatibilityHacksForceScreenUpdateMouseClick = true;
 	public static boolean CompatibilityHacksStaticInit = false;
@@ -83,6 +85,7 @@ class Globals
 	public static boolean HorizontalOrientation = true;
 	public static boolean AutoDetectOrientation = false;
 	public static boolean ImmersiveMode = true;
+	public static boolean HideSystemMousePointer = false;
 	public static boolean DownloadToSdcard = true;
 	public static boolean PhoneHasArrowKeys = false;
 	public static boolean UseAccelerometerAsArrowKeys = false;
@@ -110,6 +113,7 @@ class Globals
 	public static int MoveMouseWithGyroscopeSpeed = 2;
 	public static boolean ClickMouseWithDpad = false;
 	public static boolean RelativeMouseMovement = ForceRelativeMouseMode; // Laptop touchpad mode
+	public static boolean ForceHardwareMouse = false;
 	public static int RelativeMouseMovementSpeed = 2;
 	public static int RelativeMouseMovementAccel = 0;
 	public static int ShowScreenUnderFinger = Mouse.ZOOM_NONE;
@@ -119,6 +123,7 @@ class Globals
 	public static boolean HoverJitterFilter = true;
 	public static boolean GenerateSubframeTouchEvents = false;
 	public static boolean KeepAspectRatio = KeepAspectRatioDefaultSetting;
+	public static boolean TvBorders = true;
 	public static int RemapHwKeycode[] = new int[SDL_Keys.JAVA_KEYCODE_LAST];
 	public static int RemapScreenKbKeycode[] = new int[6];
 	public static int ScreenKbControlsLayout[][] =	AppUsesThirdJoystick ? // Values for 800x480 resolution
@@ -136,5 +141,4 @@ class Globals
 	public static boolean MultiThreadedVideo = false;
 
 	public static boolean OuyaEmulation = false; // For debugging
-	public static boolean RedirectStdout = false; // For debugging
 }

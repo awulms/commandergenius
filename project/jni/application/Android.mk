@@ -36,9 +36,10 @@ LOCAL_C_INCLUDES += $(LOCAL_PATH)/../sdl-$(SDL_VERSION)/include
 LOCAL_C_INCLUDES += $(foreach L, $(COMPILED_LIBRARIES), $(LOCAL_PATH)/../$(L)/include)
 
 LOCAL_CFLAGS += $(APPLICATION_ADDITIONAL_CFLAGS)
+LOCAL_CPPFLAGS += $(APPLICATION_ADDITIONAL_CPPFLAGS)
 
 # Change C++ file extension as appropriate
-LOCAL_CPP_EXTENSION := .cpp
+LOCAL_CPP_EXTENSION := .cpp .cxx .cc
 
 ifneq ($(APPLICATION_CUSTOM_BUILD_SCRIPT),)
 LOCAL_SRC_FILES := dummy.c
@@ -50,10 +51,9 @@ LOCAL_STATIC_LIBRARIES := $(filter $(APP_AVAILABLE_STATIC_LIBS), $(COMPILED_LIBR
 
 APP_STL := gnustl_static
 
-LOCAL_LDLIBS := -lGLESv1_CM -ldl -llog -lz # -lgnustl_static
+LOCAL_LDLIBS := $(APPLICATION_GLES_LIBRARY) -ldl -llog -lz # -lgnustl_static
 
 LOCAL_LDFLAGS := -Lobj/local/$(TARGET_ARCH_ABI)
-
 
 LOCAL_LDFLAGS += $(APPLICATION_ADDITIONAL_LDFLAGS)
 
@@ -62,6 +62,11 @@ LOCAL_CPP_EXTENSION := .cpp .cxx .cc
 SDL_APP_LIB_DEPENDS-$(TARGET_ARCH_ABI) := $(LOCAL_PATH)/src/AndroidBuild.sh $(LOCAL_PATH)/src/AndroidAppSettings.cfg
 SDL_APP_LIB_DEPENDS-$(TARGET_ARCH_ABI) += $(foreach LIB, $(LOCAL_SHARED_LIBRARIES), obj/local/$(TARGET_ARCH_ABI)/lib$(LIB).so)
 SDL_APP_LIB_DEPENDS-$(TARGET_ARCH_ABI) += $(foreach LIB, $(LOCAL_STATIC_LIBRARIES), obj/local/$(TARGET_ARCH_ABI)/lib$(LIB).a)
+
+.PHONY: obj/local/$(TARGET_ARCH_ABI)/libcrypto.so obj/local/$(TARGET_ARCH_ABI)/libssl.so obj/local/$(TARGET_ARCH_ABI)/libcurl.so
+obj/local/$(TARGET_ARCH_ABI)/libcrypto.so: obj/local/$(TARGET_ARCH_ABI)/libcrypto.so.sdl.0.so
+obj/local/$(TARGET_ARCH_ABI)/libssl.so: obj/local/$(TARGET_ARCH_ABI)/libssl.so.sdl.0.so
+obj/local/$(TARGET_ARCH_ABI)/libcurl.so: obj/local/$(TARGET_ARCH_ABI)/libcurl-sdl.so
 
 include $(BUILD_SHARED_LIBRARY)
 
@@ -118,5 +123,11 @@ obj/local/arm64-v8a/libapplication.so: $(LOCAL_PATH)/src/libapplication-arm64-v8
 $(LOCAL_PATH)/src/libapplication-arm64-v8a.so: $(SDL_APP_LIB_DEPENDS-arm64-v8a) OVERRIDE_CUSTOM_LIB
 	cd $(LOCAL_PATH_SDL_APPLICATION)/src && $(PARALLEL_LOCK) && \
 	./AndroidBuild.sh arm64-v8a aarch64-linux-android && $(PARALLEL_UNLOCK)
+
+obj/local/x86_64/libapplication.so: $(LOCAL_PATH)/src/libapplication-x86_64.so
+
+$(LOCAL_PATH)/src/libapplication-x86_64.so: $(SDL_APP_LIB_DEPENDS-x86_64) OVERRIDE_CUSTOM_LIB
+	cd $(LOCAL_PATH_SDL_APPLICATION)/src && $(PARALLEL_LOCK) && \
+	./AndroidBuild.sh x86_64 x86_64-linux-android && $(PARALLEL_UNLOCK)
 
 endif # $(APPLICATION_CUSTOM_BUILD_SCRIPT)

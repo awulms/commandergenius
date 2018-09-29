@@ -243,11 +243,11 @@ class SettingsMenu
 				new SettingsMenuMisc.OptionalDownloadConfig(false),
 				new SettingsMenuKeyboard.KeyboardConfigMainMenu(),
 				new SettingsMenuMouse.MouseConfigMainMenu(),
-				new SettingsMenuMisc.GyroscopeCalibration(),
 				new SettingsMenuMisc.AudioConfig(),
 				new SettingsMenuKeyboard.RemapHwKeysConfig(),
 				new SettingsMenuKeyboard.ScreenGesturesConfig(),
 				new SettingsMenuMisc.VideoSettingsConfig(),
+				new SettingsMenuMisc.CommandlineConfig(),
 				new SettingsMenuMisc.ResetToDefaultsConfig(),
 				new OkButton(),
 			};

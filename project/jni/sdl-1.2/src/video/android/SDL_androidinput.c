@@ -349,7 +349,7 @@ static void ProcessMultitouchGesture( int x, int y, int action, int pointerId )
 			}
 			else
 			{
-				int distMaxDiff = SDL_ANDROID_sFakeWindowHeight / ( 1 + (1 + multitouchGestureSensitivity) * 2 );
+				int distMaxDiff = SDL_ANDROID_sFakeWindowHeight / ( 2 + (1 + multitouchGestureSensitivity) * 3 );
 				int angleMaxDiff = atan2i_PI * 2 / 3 / ( 1 + (1 + multitouchGestureSensitivity) * 2 );
 				int wheelThreshold = SDL_ANDROID_sFakeWindowHeight / MULTITOUCH_MOUSE_WHEEL_DIST;
 				if( dist - multitouchGestureDist > distMaxDiff )
@@ -528,7 +528,7 @@ static void ProcessMouseUp( int x, int y )
 			SDL_ANDROID_MainThreadPushMouseMotion( mouseInitialX - 1, mouseInitialY );
 		mouseInitialX = -1;
 		mouseInitialY = -1;
-		deferredMouseTap = 1;
+		deferredMouseTap = 2;
 		mouseClickTimeout = 200;
 		if( mouseClickTimeoutInitialized )
 			sem_post(&mouseClickTimeoutSemaphore);
@@ -878,7 +878,9 @@ static void ProcessDeferredMouseTap()
 {
 	if( deferredMouseTap > 0 )
 	{
-		deferredMouseTap = 0;
+		deferredMouseTap--;
+		if (deferredMouseTap > 0)
+			return;
 		SDL_ANDROID_MainThreadPushMouseButton( SDL_RELEASED, SDL_BUTTON_LEFT );
 		if( forceScreenUpdateMouseClick && SDL_ANDROID_currentMouseX + 1 < SDL_ANDROID_sFakeWindowWidth )
 			SDL_ANDROID_MainThreadPushMouseMotion( SDL_ANDROID_currentMouseX + 1, SDL_ANDROID_currentMouseY );
@@ -961,6 +963,8 @@ JNIEXPORT jint JNICALL
 JAVA_EXPORT_NAME(DemoGLSurfaceView_nativeKey) ( JNIEnv*  env, jobject thiz, jint key, jint action, jint unicode )
 {
 	SDL_scancode keycode;
+	int unshifted = unicode;
+	int shiftRequired = checkShiftRequired(&unshifted);
 #if SDL_VERSION_ATLEAST(1,3,0)
 #else
 	if( !SDL_CurrentVideoSurface )
@@ -984,21 +988,13 @@ JAVA_EXPORT_NAME(DemoGLSurfaceView_nativeKey) ( JNIEnv*  env, jobject thiz, jint
 	if( keycode == SDLK_NO_REMAP || (keycode == SDLK_UNKNOWN && unicode == 0) )
 		return 0;
 
-	if( keycode == SDLK_UNKNOWN && (unicode & 0xFF80) == 0 )
+	if( keycode == SDLK_UNKNOWN || unicode != unshifted )
 	{
-		int shiftRequired = checkShiftRequired(&unicode);
-		keycode = unicode;
-		if (shiftRequired)
-			SDL_ANDROID_MainThreadPushKeyboardKey( SDL_PRESSED, SDLK_LSHIFT, 0 );
-		SDL_ANDROID_MainThreadPushKeyboardKey( SDL_PRESSED, keycode, 0 );
-		if (shiftRequired)
-			SDL_ANDROID_MainThreadPushKeyboardKey( SDL_RELEASED, SDLK_LSHIFT, 0 );
-		action = 0; // Android won't send 'key released' action for keys that do not have keysym, so we simulate it below
-		unicode = 0;
+		if ((unshifted & 0xFF80) == 0)
+			keycode = unshifted;
+		if (unicode != unshifted)
+			SDL_ANDROID_MainThreadPushKeyboardKey( action ? SDL_PRESSED : SDL_RELEASED, SDLK_LSHIFT, 0 );
 	}
-
-	if( keycode != SDLK_UNKNOWN )
-		unicode = 0;
 
 	SDL_ANDROID_MainThreadPushKeyboardKey( action ? SDL_PRESSED : SDL_RELEASED, keycode, unicode );
 	return 1;
@@ -1039,6 +1035,7 @@ JAVA_EXPORT_NAME(DemoRenderer_nativeTextInputFinished) ( JNIEnv*  env, jobject t
 		textInputBuffer[0] = 0;
 	textInputBuffer = NULL;
 	SDL_ANDROID_TextInputFinished = 1;
+	SDL_ANDROID_IsScreenKeyboardShownFlag = 0;
 }
 
 JNIEXPORT void JNICALL
@@ -1181,6 +1178,31 @@ JAVA_EXPORT_NAME(Settings_nativeSetMouseUsed) (JNIEnv* env, jobject thiz,
 		pthread_create(&mouseClickTimeoutThreadId, &attr, mouseClickTimeoutThread, NULL);
 		pthread_attr_destroy(&attr);
 	}
+}
+
+void SDLCALL SDL_ANDROID_SetMouseEmulationMode(
+	int _relativeMovement, int _relativeMovementSpeed, int _relativeMovementAcceleration,
+	int _leftClickMode, SDLKey _leftClickKey, int _leftClickTimeout,
+	int _rightClickMode, SDLKey _rightClickKey, int _rightClickTimeout,
+	int _moveMouseWithJoystick, int _moveMouseWithJoystickSpeed, int _moveMouseWithJoystickAcceleration,
+	int _moveMouseWithGyroscope, int _moveMouseWithGyroscopeSpeed,
+	int _forceHardwareMouse, int _showScreenUnderFinger,
+	int _fingerHover, int _fingerHoverJitterFilter, int _generateSubframeTouchEvents
+)
+{
+	relativeMovement = _relativeMovement;
+	if (relativeMovement)
+	{
+		leftClickMethod = LEFT_CLICK_WITH_TAP_OR_TIMEOUT;
+	}
+	else
+	{
+		leftClickMethod = LEFT_CLICK_NORMAL;
+	}
+}
+
+int SDLCALL SDL_ANDROID_GetMouseEmulationMode() {
+    return relativeMovement;
 }
 
 typedef struct

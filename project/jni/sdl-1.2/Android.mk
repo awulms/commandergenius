@@ -57,6 +57,10 @@ LOCAL_SRC_FILES := $(foreach F, $(SDL_SRCS), $(addprefix $(dir $(F)),$(notdir $(
 
 LOCAL_SHARED_LIBRARIES := sdl_native_helpers # Not really a dependency, needed for CustomBuildScript
 
-LOCAL_LDLIBS := -lGLESv1_CM -ldl -llog
+ifdef USE_GL4ES
+LOCAL_STATIC_LIBRARIES := gl4es
+endif
+
+LOCAL_LDLIBS := $(APPLICATION_GLES_LIBRARY) -ldl -llog
 
 include $(BUILD_SHARED_LIBRARY)

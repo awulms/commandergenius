@@ -78,7 +78,7 @@ import android.content.Intent;
 
 
 // TODO: too much code here, split into multiple files, possibly auto-generated menus?
-class Settings
+public class Settings
 {
 	static String SettingsFileName = "libsdl-settings.cfg";
 
@@ -89,7 +89,7 @@ class Settings
 	static void Save(final MainActivity p)
 	{
 		try {
-			ObjectOutputStream out = new ObjectOutputStream(p.openFileOutput( SettingsFileName, p.MODE_WORLD_READABLE ));
+			ObjectOutputStream out = new ObjectOutputStream(p.openFileOutput( SettingsFileName, p.MODE_PRIVATE ));
 			out.writeInt(SETTINGS_FILE_VERSION);
 			out.writeBoolean(Globals.DownloadToSdcard);
 			out.writeBoolean(Globals.PhoneHasArrowKeys);
@@ -163,15 +163,16 @@ class Settings
 			out.writeBoolean(false); // Unused
 			out.writeInt(Globals.TouchscreenKeyboardDrawSize);
 			out.writeInt(p.getApplicationVersion());
-			out.writeFloat(AccelerometerReader.gyro.x1);
-			out.writeFloat(AccelerometerReader.gyro.x2);
-			out.writeFloat(AccelerometerReader.gyro.xc);
-			out.writeFloat(AccelerometerReader.gyro.y1);
-			out.writeFloat(AccelerometerReader.gyro.y2);
-			out.writeFloat(AccelerometerReader.gyro.yc);
-			out.writeFloat(AccelerometerReader.gyro.z1);
-			out.writeFloat(AccelerometerReader.gyro.z2);
-			out.writeFloat(AccelerometerReader.gyro.zc);
+			// Gyroscope calibration data, now unused
+			out.writeFloat(0.0f);
+			out.writeFloat(0.0f);
+			out.writeFloat(0.0f);
+			out.writeFloat(0.0f);
+			out.writeFloat(0.0f);
+			out.writeFloat(0.0f);
+			out.writeFloat(0.0f);
+			out.writeFloat(0.0f);
+			out.writeFloat(0.0f);
 
 			out.writeBoolean(Globals.OuyaEmulation);
 			out.writeBoolean(Globals.HoverJitterFilter);
@@ -184,6 +185,8 @@ class Settings
 			out.writeBoolean(Globals.HorizontalOrientation);
 			out.writeBoolean(Globals.ImmersiveMode);
 			out.writeBoolean(Globals.AutoDetectOrientation);
+			out.writeBoolean(Globals.TvBorders);
+			out.writeBoolean(Globals.ForceHardwareMouse);
 
 			out.close();
 			settingsLoaded = true;
@@ -201,8 +204,6 @@ class Settings
 		}
 		Log.i("SDL", "libSDL: Settings.Load(): enter");
 		nativeInitKeymap();
-		if( p.isRunningOnOUYA() )
-			nativeSetKeymapKey(KeyEvent.KEYCODE_MENU, nativeGetKeymapKey(KeyEvent.KEYCODE_BACK)); // Ouya does not have Back key, only Menu, so remap Back keycode to Menu
 		for( int i = 0; i < SDL_Keys.JAVA_KEYCODE_LAST; i++ )
 		{
 			int sdlKey = nativeGetKeymapKey(i);
@@ -356,15 +357,16 @@ class Settings
 			settingsFile.readBoolean(); // Unused
 			Globals.TouchscreenKeyboardDrawSize = settingsFile.readInt();
 			int cfgVersion = settingsFile.readInt();
-			AccelerometerReader.gyro.x1 = settingsFile.readFloat();
-			AccelerometerReader.gyro.x2 = settingsFile.readFloat();
-			AccelerometerReader.gyro.xc = settingsFile.readFloat();
-			AccelerometerReader.gyro.y1 = settingsFile.readFloat();
-			AccelerometerReader.gyro.y2 = settingsFile.readFloat();
-			AccelerometerReader.gyro.yc = settingsFile.readFloat();
-			AccelerometerReader.gyro.z1 = settingsFile.readFloat();
-			AccelerometerReader.gyro.z2 = settingsFile.readFloat();
-			AccelerometerReader.gyro.zc = settingsFile.readFloat();
+			// Gyroscope calibration data, now unused
+			settingsFile.readFloat();
+			settingsFile.readFloat();
+			settingsFile.readFloat();
+			settingsFile.readFloat();
+			settingsFile.readFloat();
+			settingsFile.readFloat();
+			settingsFile.readFloat();
+			settingsFile.readFloat();
+			settingsFile.readFloat();
 
 			Globals.OuyaEmulation = settingsFile.readBoolean();
 			Globals.HoverJitterFilter = settingsFile.readBoolean();
@@ -377,6 +379,8 @@ class Settings
 			Globals.HorizontalOrientation = settingsFile.readBoolean();
 			Globals.ImmersiveMode = settingsFile.readBoolean();
 			Globals.AutoDetectOrientation = settingsFile.readBoolean();
+			Globals.TvBorders = settingsFile.readBoolean();
+			Globals.ForceHardwareMouse = settingsFile.readBoolean();
 
 			settingsLoaded = true;
 
@@ -399,8 +403,11 @@ class Settings
 			return;
 			
 		} catch( FileNotFoundException e ) {
+				Log.i("SDL", "libSDL: settings file not found: " + e);
 		} catch( SecurityException e ) {
+				Log.i("SDL", "libSDL: settings file cannot be opened: " + e);
 		} catch ( IOException e ) {
+				Log.i("SDL", "libSDL: settings file cannot be read: " + e);
 			DeleteFilesOnUpgrade(p);
 			if( Globals.ResetSdlConfigForThisVersion )
 			{
@@ -416,13 +423,14 @@ class Settings
 				Log.i("SDL", "libSDL: SD card or external storage is not mounted (state " + Environment.getExternalStorageState() + "), switching to the internal storage.");
 				Globals.DownloadToSdcard = false;
 			}
-			if( p.getPackageManager().checkPermission(android.Manifest.permission.WRITE_EXTERNAL_STORAGE, p.getPackageName()) != PackageManager.PERMISSION_GRANTED )
+			if( p.getPackageManager().checkPermission(android.Manifest.permission.WRITE_EXTERNAL_STORAGE, p.getPackageName()) != PackageManager.PERMISSION_GRANTED &&
+				android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.KITKAT )
 			{
 				Log.i("SDL", "libSDL: We don't have permission to write to SD card, switching to the internal storage.");
 				Globals.DownloadToSdcard = false;
 			}
 			Globals.DataDir = Globals.DownloadToSdcard ?
-								SdcardAppPath.getBestPath(p) :
+								SdcardAppPath.get().bestPath(p) :
 								p.getFilesDir().getAbsolutePath();
 			if( Globals.DownloadToSdcard )
 			{
@@ -433,11 +441,20 @@ class Settings
 						if( s.toUpperCase().startsWith(DataDownloader.DOWNLOAD_FLAG_FILENAME.toUpperCase()) )
 							Globals.DataDir = SdcardAppPath.deprecatedPath(p);
 				// Also check for pre-Kitkat files location
-				fileList = new File(SdcardAppPath.getPath(p)).list();
+				fileList = new File(SdcardAppPath.get().path(p)).list();
 				if( fileList != null )
 					for( String s: fileList )
 						if( s.toUpperCase().startsWith(DataDownloader.DOWNLOAD_FLAG_FILENAME.toUpperCase()) )
-							Globals.DataDir = SdcardAppPath.getPath(p);
+							Globals.DataDir = SdcardAppPath.get().path(p);
+
+				try {
+					new File(Globals.DataDir).mkdirs();
+					new FileOutputStream( new File(Globals.DataDir, ".nomedia") ).close();
+				} catch (Exception e) {
+					Log.i("SDL", "libSDL: cannot create .nomedia file at " + Globals.DataDir + " - switching to internal storage");
+					Globals.DownloadToSdcard = false; // SD card not writable
+					Globals.DataDir = p.getFilesDir().getAbsolutePath();
+				}
 			}
 		}
 
@@ -452,30 +469,34 @@ class Settings
 
 	public static boolean deleteRecursively(File dir)
 	{
+		boolean success = true;
 		if (dir.isDirectory()) {
 			String[] children = dir.list();
 			for (int i=0; i<children.length; i++)
 			{
-				boolean success = deleteRecursively(new File(dir, children[i]));
-				if (!success)
-					return false;
+				if (!deleteRecursively(new File(dir, children[i])))
+					success = false;
 			}
 		}
-		return dir.delete();
+		if (!dir.delete())
+			success = false;
+		return success;
 	}
 	public static boolean deleteRecursivelyAndLog(File dir)
 	{
+		boolean success = true;
 		Log.v("SDL", "Deleting old file: " + dir.getAbsolutePath() + " exists " + dir.exists());
 		if (dir.isDirectory()) {
 			String[] children = dir.list();
 			for (int i=0; i<children.length; i++)
 			{
-				boolean success = deleteRecursively(new File(dir, children[i]));
-				if (!success)
-					return false;
+				if (!deleteRecursively(new File(dir, children[i])))
+					success = false;
 			}
 		}
-		return dir.delete();
+		if (!dir.delete())
+			success = false;
+		return success;
 	}
 	public static void DeleteFilesOnUpgrade(final MainActivity p)
 	{
@@ -484,16 +505,15 @@ class Settings
 		{
 			if( path.equals("") )
 				continue;
-			
-			deleteRecursivelyAndLog(new File( SdcardAppPath.getPath(p) + "/" + path ));
 			deleteRecursivelyAndLog(new File( p.getFilesDir().getAbsolutePath() + "/" + path ));
-			deleteRecursivelyAndLog(new File( SdcardAppPath.deprecatedPath(p) + "/" + path ));
+			for( String sdpath: SdcardAppPath.get().allPaths(p) )
+				deleteRecursivelyAndLog(new File(sdpath + "/" + path ));
 		}
 	}
 	public static void DeleteSdlConfigOnUpgradeAndRestart(final MainActivity p)
 	{
 		try {
-			ObjectOutputStream out = new ObjectOutputStream(p.openFileOutput( SettingsFileName, p.MODE_WORLD_READABLE ));
+			ObjectOutputStream out = new ObjectOutputStream(p.openFileOutput( SettingsFileName, p.MODE_PRIVATE ));
 			out.writeInt(-1);
 			out.close();
 		} catch( FileNotFoundException e ) {
@@ -538,7 +558,7 @@ class Settings
 	static void Apply(MainActivity p)
 	{
 		setEnvVars(p);
-		nativeSetVideoDepth(Globals.VideoDepthBpp, Globals.NeedGles2 ? 1 : 0);
+		nativeSetVideoDepth(Globals.VideoDepthBpp, Globals.NeedGles2 ? 1 : 0, Globals.NeedGles3 ? 1 : 0);
 		if(Globals.VideoLinearFilter)
 			nativeSetVideoLinearFilter();
 		if( Globals.CompatibilityHacksVideo )
@@ -614,7 +634,7 @@ class Settings
 		nativeSetEnv( "SECURE_STORAGE_DIR", p.getFilesDir().getAbsolutePath() );
 		nativeSetEnv( "DATADIR", Globals.DataDir );
 		nativeSetEnv( "UNSECURE_STORAGE_DIR", Globals.DataDir );
-		SdcardAppPath.setEnv(p);
+		SdcardAppPath.get().setEnv(p);
 		nativeSetEnv( "HOME", Globals.DataDir );
 		nativeSetEnv( "SDCARD", Environment.getExternalStorageDirectory().getAbsolutePath() );
 		nativeSetEnv( "SDCARD_DOWNLOADS", Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS).getAbsolutePath() );
@@ -622,18 +642,25 @@ class Settings
 		nativeSetEnv( "SDCARD_MOVIES", Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES).getAbsolutePath() );
 		nativeSetEnv( "SDCARD_DCIM", Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM).getAbsolutePath() );
 		nativeSetEnv( "SDCARD_MUSIC", Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC).getAbsolutePath() );
-		nativeSetEnv( "SDCARD_MUSIC", Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC).getAbsolutePath() );
 		nativeSetEnv( "ANDROID_VERSION", String.valueOf(android.os.Build.VERSION.SDK_INT) );
 		nativeSetEnv( "ANDROID_PACKAGE_NAME", p.getPackageName() );
-		nativeSetEnv( "ANDROID_MY_OWN_APP_FILE", p.getPackageResourcePath() );
+		nativeSetEnv( "ANDROID_PACKAGE_PATH", p.getPackageCodePath() );
+		nativeSetEnv( "ANDROID_MY_OWN_APP_FILE", p.getPackageResourcePath() ); // This may be different from p.getPackageCodePath() on multi-user systems, but should still be the same .apk file
 		try {
 			nativeSetEnv( "ANDROID_APP_NAME", p.getString(p.getApplicationInfo().labelRes) );
 		} catch (Exception eeeeee) {}
-		if( Build.VERSION.SDK_INT >= Build.VERSION_CODES.FROYO )
-			nativeSetEnv( "ANDROID_PACKAGE_PATH", p.getPackageCodePath() );
 		Log.d("SDL", "libSDL: Is running on OUYA: " + p.isRunningOnOUYA());
 		if( p.isRunningOnOUYA() )
+		{
 			nativeSetEnv( "OUYA", "1" );
+			nativeSetEnv( "TV", "1" );
+			nativeSetEnv( "ANDROID_TV", "1" );
+		}
+		if (p.getIntent().getCategories() != null && p.getIntent().getCategories().contains("com.google.intent.category.CARDBOARD")) {
+			nativeSetEnv( "CARDBOARD", "1" );
+			nativeSetEnv( "VR", "1" );
+			nativeSetEnv( "CARDBOARD_VR", "1" );
+		}
 		if (p.getIntent().getStringExtra(RestartMainActivity.SDL_RESTART_PARAMS) != null)
 			nativeSetEnv( RestartMainActivity.SDL_RESTART_PARAMS, p.getIntent().getStringExtra(RestartMainActivity.SDL_RESTART_PARAMS) );
 		try {
@@ -714,45 +741,32 @@ class Settings
 
 	abstract static class SdcardAppPath
 	{
-		private static SdcardAppPath get()
+		public static SdcardAppPath get()
 		{
 			if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.KITKAT)
 				return Kitkat.Holder.sInstance;
-			else if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.FROYO)
-				return Froyo.Holder.sInstance;
 			else
-				return Dummy.Holder.sInstance;
+				return Froyo.Holder.sInstance;
 		}
-		public abstract String path(final Context p);
-		private void setEnvInternal(final Context p)
+		public String path(final Context p)
 		{
-			nativeSetEnv( "UNSECURE_STORAGE_DIR_0", Globals.DataDir );
+			return get().path(p);
 		}
-		public static void setEnv(final Context p)
+		public void setEnv(final Context p)
 		{
-			get().setEnvInternal(p);
+			get().setEnv(p);
 		}
 		public String bestPath(final Context p)
 		{
-			return path(p);
+			return get().bestPath(p);
 		};
-		public static String deprecatedPath(final Context p)
+		public String[] allPaths(final Context p)
+		{
+			return get().allPaths(p);
+		};
+		public static final String deprecatedPath(final Context p)
 		{
 			return Environment.getExternalStorageDirectory().getAbsolutePath() + "/app-data/" + p.getPackageName();
-		}
-		public static String getPath(final Context p)
-		{
-			try {
-				return get().path(p);
-			} catch(Exception e) { }
-			return Dummy.Holder.sInstance.path(p);
-		}
-		public static String getBestPath(final Context p)
-		{
-			try {
-				return get().bestPath(p);
-			} catch(Exception e) { }
-			return Dummy.Holder.sInstance.path(p);
 		}
 
 		private static class Froyo extends SdcardAppPath
@@ -761,9 +775,31 @@ class Settings
 			{
 				private static final Froyo sInstance = new Froyo();
 			}
+			@Override
 			public String path(final Context p)
 			{
+				if( p.getExternalFilesDir(null) == null )
+				{
+					if( Environment.getExternalStorageDirectory() == null )
+						return "/sdcard/Android/data/" + p.getPackageName() + "/files";
+					return Environment.getExternalStorageDirectory().getAbsolutePath() + "/Android/data/" + p.getPackageName() + "/files";
+				}
 				return p.getExternalFilesDir(null).getAbsolutePath();
+			}
+			@Override
+			public void setEnv(final Context p)
+			{
+				nativeSetEnv( "UNSECURE_STORAGE_DIR_0", Globals.DataDir );
+			}
+			@Override
+			public String bestPath(final Context p)
+			{
+				return path(p);
+			}
+			@Override
+			public String[] allPaths(final Context p)
+			{
+				return new String[] { path(p), deprecatedPath(p) };
 			}
 		}
 		private static class Kitkat extends Froyo
@@ -772,6 +808,7 @@ class Settings
 			{
 				private static final Kitkat sInstance = new Kitkat();
 			}
+			@Override
 			public String bestPath(final Context p)
 			{
 				File[] paths = p.getExternalFilesDirs(null);
@@ -781,8 +818,19 @@ class Settings
 				{
 					if( path == null )
 						continue;
-					StatFs stat = new StatFs(path.getPath());
-					long size = (long)stat.getAvailableBlocks() * stat.getBlockSize() / 1024 / 1024;
+					long size = -1;
+					try {
+						StatFs stat = new StatFs(path.getPath());
+						size = (long)stat.getAvailableBlocks() * stat.getBlockSize() / 1024 / 1024;
+					} catch (Exception ee) {} // Can throw an exception if we cannot read from SD card
+
+					try {
+						path.mkdirs();
+						new FileOutputStream( new File(path, ".nomedia") ).close();
+					} catch (Exception e) {
+						size = -1; // Not writable
+					}
+
 					if( size > maxSize )
 					{
 						maxSize = size;
@@ -791,7 +839,8 @@ class Settings
 				}
 				return ret;
 			};
-			public void setEnvInternal(final Context p)
+			@Override
+			public void setEnv(final Context p)
 			{
 				File[] paths = p.getExternalFilesDirs(null);
 				int index = 0;
@@ -805,16 +854,24 @@ class Settings
 					index++;
 				}
 			}
-		}
-		private static class Dummy extends SdcardAppPath
-		{
-			private static class Holder
+			@Override
+			public String[] allPaths(final Context p)
 			{
-				private static final Dummy sInstance = new Dummy();
-			}
-			public String path(final Context p)
-			{
-				return Environment.getExternalStorageDirectory().getAbsolutePath() + "/Android/data/" + p.getPackageName() + "/files";
+				ArrayList<String> ret = new ArrayList<String>();
+				for( File path: p.getExternalFilesDirs(null) )
+				{
+					if( path == null )
+						continue;
+					try {
+						path.mkdirs();
+						new FileOutputStream( new File(path, ".nomedia") ).close();
+					} catch (Exception e) {
+						continue;
+					}
+					ret.add(path.getAbsolutePath());
+				}
+				ret.add(deprecatedPath(p));
+				return ret.toArray(new String[0]);
 			}
 		}
 	}
@@ -873,7 +930,23 @@ class Settings
 		}
 		return true;
 	}
-	
+
+	static final int SDL_ANDROID_CONFIG_VIDEO_DEPTH_BPP = 0;
+
+	public static void setConfigOptionFromSDL(int option, int value)
+	{
+		switch (option)
+		{
+			case SDL_ANDROID_CONFIG_VIDEO_DEPTH_BPP:
+				Globals.VideoDepthBpp = value;
+				break;
+			default:
+				Log.e("SDL", "setConfigOptionFromSDL: cannot find option with ID " + option + ", value " + value);
+				break;
+		}
+		Save(MainActivity.instance);
+	}
+
 	private static native void nativeSetAccelerometerSettings(int sensitivity, int centerPos);
 	private static native void nativeSetMouseUsed(int RightClickMethod, int ShowScreenUnderFinger, int LeftClickMethod, 
 													int MoveMouseWithJoystick, int ClickMouseWithDpad, int MaxForce, int MaxRadius,
@@ -890,7 +963,7 @@ class Settings
 	private static native void nativeSetMultitouchUsed();
 	private static native void nativeSetTouchscreenKeyboardUsed();
 	private static native void nativeSetVideoLinearFilter();
-	private static native void nativeSetVideoDepth(int bpp, int gles2);
+	private static native void nativeSetVideoDepth(int bpp, int gles2, int gles3);
 	private static native void nativeSetCompatibilityHacks();
 	private static native void nativeSetVideoMultithreaded();
 	private static native void nativeSetVideoForceSoftwareMode();

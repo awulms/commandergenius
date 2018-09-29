@@ -1,7 +1,7 @@
 This is SDL 1.2 and 1.3 ported to Google Android (also bunch of other libs included).
 Sources or patches of the individual games are in the directory project/jni/application.
 
-The libsdl.org now has an official SDL 1.3 Android port, which is more recent and
+The libsdl.org now has an official SDL 1.3/2.0 Android port, which is more recent and
 better suited for creating new applications from scratch, this port is focused mainly
 on SDL 1.2 and compiling existing applications, it's up to you to decide which port is better.
 Also this port is developed very slowly, although the same is true for an official port.
@@ -11,25 +11,29 @@ Installation
 ============
 
 Install latest Android SDK and NDK from http://developer.android.com/index.html
-You'll need to install Java Ant too. Since for building apk files some java classes are needed as well,
-it is recommended to install OpenJDK and its development files. (On RPM based distros
-usually called java-x.x.x-openjdk and java-x.x.x-openjdk-devel)
+Add both to your PATH env variable 0 you should be able to run commands 'ndk-build' and 'android'.
+You will need to install Gradle also.
+it is recommended to install OpenJDK and its development files.
+On RPM based distros they are usually called java-x.x.x-openjdk and java-x.x.x-openjdk-devel.
+On Debian or Ubuntu you install them like this: sudo apt-get install openjdk-8-jdk ant
 The application will run on Android 2.3 and above, but will use features from Android 6.0 if available.
 The most supported environment for this port is Linux, MacOs should be okay too.
-If you're developing under Windows you'd better install Portable Ubuntu, to get proper Linux environment
-running inside Windows, then install Linux toolchain on it.
+If you're developing under Windows, you will need to install some Linux environment,
+such as Bash shell on Windows 10, or Portable Ubuntu, then install Linux toolchain on it.
+https://msdn.microsoft.com/en-us/commandline/wsl/install_guide
 https://sourceforge.net/projects/portableubuntu/
-Cygwin is not supported by the NDK, starting from the NDK r6.
+Cygwin is not supported by the NDK.
 
 
 How to compile demo application
 ===============================
 
 Launch commands
+
 	rm project/jni/application/src
 	ln -s ballfield project/jni/application/src
 	./changeAppSettings.sh -a
-	android update project -p project
+	
 Then edit file build.sh if needed to add NDK dir to your PATH, then launch it.
 It will compile a bunch of libs under project/libs/armeabi,
 create Android package file project/bin/MainActivity-debug.apk,
@@ -55,6 +59,28 @@ This port also supports GL ES + SDL combo - there is GLXGears demo app in projec
 to compile it remove project/jni/application/src symlink and make new one pointing to glxgears, and run build.sh
 Note that GL ES is NOT pure OpenGL - there are no glBegin() and glEnd() call and other widely used functions,
 and generally it will take a lot of effort to port OpenGL application to GL ES.
+
+
+Licensing issues when using gradle 
+==================================
+
+cd into android-sdk-linux/tools/bin
+
+
+and
+
+./sdkmanager --licenses
+
+if that does not work you need to update
+
+./sdkmanager --update
+
+Accept the license with 'y'. It might download additional stuff, yet not sure, why...
+
+Retry with 
+
+./sdkmanager --licenses
+
 
 How to compile a specific SDL based application
 ===============================================
@@ -228,16 +254,6 @@ memcpy( &i, p, sizeof(int) ); // The correct way to dereference a non-aligned po
 This compiler flags will catch most obvious errors, you may add them to AppCflags var in settings:
 -Wstrict-aliasing -Wcast-align -Wpointer-arith -Waddress
 Also beware of the NDK - some system headers contain the code that triggers that warnings.
-
-The application will automatically get moved to SD-card on Android 2.2 or newer,
-(or you can install app2sd for older, but rooted phones),
-however the shared libraries have to be stored on the device internal storage,
-and that may be not desired for older phones with very little storage.
-The script app2sd.sh will re-package your .apk file in such a way that
-the shared libraries will not be extracted by Android OS but by application itself,
-and it will remove them from internal storage right after starting up,
-so you still need that space free, but only temporarily.
-However your application will start up slower.
 
 SDL supports AdMob advertisements, you need to set your publisher ID inside AndroidAppSettings.cfg,
 see project test-advertisements for details.

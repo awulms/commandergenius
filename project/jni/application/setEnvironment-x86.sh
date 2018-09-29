@@ -3,26 +3,24 @@
 IFS='
 '
 
-MYARCH=linux-x86
+MYARCH=linux-x86_64
 if uname -s | grep -i "linux" > /dev/null ; then
-	MYARCH=linux-x86
+	MYARCH=linux-x86_64
 fi
 if uname -s | grep -i "darwin" > /dev/null ; then
-	MYARCH=darwin-x86
+	MYARCH=darwin-x86_64
 fi
 if uname -s | grep -i "windows" > /dev/null ; then
-	MYARCH=windows-x86
+	MYARCH=windows-x86_64
 fi
 
 NDK=`which ndk-build`
 NDK=`dirname $NDK`
 NDK=`readlink -f $NDK`
 
-grep "64.bit" "$NDK/RELEASE.TXT" >/dev/null 2>&1 && MYARCH="${MYARCH}_64"
-
 #echo NDK $NDK
 GCCPREFIX=i686-linux-android
-[ -z "$NDK_TOOLCHAIN_VERSION" ] && NDK_TOOLCHAIN_VERSION=4.8
+[ -z "$NDK_TOOLCHAIN_VERSION" ] && NDK_TOOLCHAIN_VERSION=4.9
 [ -z "$PLATFORMVER" ] && PLATFORMVER=android-14
 LOCAL_PATH=`dirname $0`
 if which realpath > /dev/null ; then
@@ -39,7 +37,12 @@ echo $APP_MODULES | xargs -n 1 echo | while read LIB ; do
 	STATIC=`echo $APP_AVAILABLE_STATIC_LIBS application sdl_main stlport stdout-test | grep "\\\\b$LIB\\\\b"`
 	if [ -n "$STATIC" ] ; then true
 	else
-		echo $LIB
+		case $LIB in
+			crypto) echo crypto.so.sdl.1;;
+			ssl) echo ssl.so.sdl.1;;
+			curl) echo curl-sdl;;
+			*) echo $LIB;;
+		esac
 	fi
 done
 )
@@ -50,7 +53,7 @@ MISSING_LIB=
 
 CFLAGS="\
 -fpic -ffunction-sections -funwind-tables -no-canonical-prefixes \
--fstack-protector -O2 -g -DNDEBUG \
+-fstack-protector-strong -O2 -g -DNDEBUG \
 -fomit-frame-pointer -fstrict-aliasing -funswitch-loops \
 -finline-limit=300 \
 -DANDROID -Wall -Wno-unused -Wa,--noexecstack -Wformat -Werror=format-security \
@@ -87,21 +90,42 @@ $SHARED \
 -L$NDK/sources/cxx-stl/gnu-libstdc++/$NDK_TOOLCHAIN_VERSION/libs/$ARCH \
 -lgnustl_static \
 -no-canonical-prefixes $UNRESOLVED -Wl,-z,noexecstack -Wl,-z,relro -Wl,-z,now \
+-Wl,--build-id -Wl,--warn-shared-textrel -Wl,--fatal-warnings \
 -lsupc++ \
 $MISSING_LIB $LDFLAGS"
 
-#echo env CFLAGS=\""$CFLAGS"\" LDFLAGS=\""$LDFLAGS"\" "$@"
+CC="$NDK/toolchains/$ARCH-$NDK_TOOLCHAIN_VERSION/prebuilt/$MYARCH/bin/$GCCPREFIX-gcc"
+CXX="$NDK/toolchains/$ARCH-$NDK_TOOLCHAIN_VERSION/prebuilt/$MYARCH/bin/$GCCPREFIX-g++"
+CPP="$NDK/toolchains/$ARCH-$NDK_TOOLCHAIN_VERSION/prebuilt/$MYARCH/bin/$GCCPREFIX-cpp $CFLAGS"
+
+if [ -n "$CLANG" ]; then
+
+CFLAGS="\
+-gcc-toolchain $NDK/toolchains/$ARCH-$NDK_TOOLCHAIN_VERSION/prebuilt/$MYARCH \
+-target i686-none-linux-android -Wno-invalid-command-line-argument -Wno-unused-command-line-argument \
+$CFLAGS"
+
+LDFLAGS="$LDFLAGS \
+-lgcc \
+-gcc-toolchain $NDK/toolchains/$ARCH-$NDK_TOOLCHAIN_VERSION/prebuilt/$MYARCH \
+-target i686-none-linux-android"
+
+CC="$NDK/toolchains/llvm/prebuilt/$MYARCH/bin/clang"
+CXX="$NDK/toolchains/llvm/prebuilt/$MYARCH/bin/clang++"
+CPP="$CC -E $CFLAGS"
+
+fi
 
 env PATH=$NDK/toolchains/$ARCH-$NDK_TOOLCHAIN_VERSION/prebuilt/$MYARCH/bin:$LOCAL_PATH:$PATH \
 CFLAGS="$CFLAGS" \
 CXXFLAGS="$CXXFLAGS $CFLAGS -frtti -fexceptions" \
 LDFLAGS="$LDFLAGS" \
-CC="$NDK/toolchains/$ARCH-$NDK_TOOLCHAIN_VERSION/prebuilt/$MYARCH/bin/$GCCPREFIX-gcc" \
-CXX="$NDK/toolchains/$ARCH-$NDK_TOOLCHAIN_VERSION/prebuilt/$MYARCH/bin/$GCCPREFIX-g++" \
+CC="$CC" \
+CXX="$CXX" \
 RANLIB="$NDK/toolchains/$ARCH-$NDK_TOOLCHAIN_VERSION/prebuilt/$MYARCH/bin/$GCCPREFIX-ranlib" \
-LD="$NDK/toolchains/$ARCH-$NDK_TOOLCHAIN_VERSION/prebuilt/$MYARCH/bin/$GCCPREFIX-g++" \
+LD="$CXX" \
 AR="$NDK/toolchains/$ARCH-$NDK_TOOLCHAIN_VERSION/prebuilt/$MYARCH/bin/$GCCPREFIX-ar" \
-CPP="$NDK/toolchains/$ARCH-$NDK_TOOLCHAIN_VERSION/prebuilt/$MYARCH/bin/$GCCPREFIX-cpp $CFLAGS" \
+CPP="$CPP" \
 NM="$NDK/toolchains/$ARCH-$NDK_TOOLCHAIN_VERSION/prebuilt/$MYARCH/bin/$GCCPREFIX-nm" \
 AS="$NDK/toolchains/$ARCH-$NDK_TOOLCHAIN_VERSION/prebuilt/$MYARCH/bin/$GCCPREFIX-as" \
 STRIP="$NDK/toolchains/$ARCH-$NDK_TOOLCHAIN_VERSION/prebuilt/$MYARCH/bin/$GCCPREFIX-strip" \

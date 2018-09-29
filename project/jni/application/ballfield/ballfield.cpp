@@ -18,6 +18,7 @@
 #include <SDL/SDL.h>
 #include <SDL/SDL_image.h>
 #include <SDL/SDL_screenkeyboard.h>
+#include <SDL/SDL_android.h>
 
 #define fprintf(X, ...) __android_log_print(ANDROID_LOG_INFO, "Ballfield", __VA_ARGS__)
 #define printf(...) __android_log_print(ANDROID_LOG_INFO, "Ballfield", __VA_ARGS__)
@@ -441,6 +442,7 @@ int main(int argc, char* argv[])
 	int accel[5], screenjoy[4], gamepads[4][8];
 	SDL_Surface	*mouse[4];
 	int screenKeyboardShown = 0;
+	char asyncTextInputBuf[256];
 
 
 	SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_JOYSTICK);
@@ -485,7 +487,7 @@ int main(int argc, char* argv[])
 	/*
 	 * Load background image
 	 */
-	temp_image = IMG_Load("sun.gif");
+	temp_image = IMG_Load(argc > 1 ? argv[1] : "sun.gif");
 	if(!temp_image)
 	{
 		fprintf(stderr, "Could not load background!\n");
@@ -658,7 +660,7 @@ int main(int argc, char* argv[])
 
 		int mx, my;
 		int b = SDL_GetMouseState(&mx, &my);
-		//__android_log_print(ANDROID_LOG_INFO, "Ballfield", "Mouse buttons: %d", b);
+		//__android_log_print(ANDROID_LOG_INFO, "Ballfield", "Mouse: %04d %04d buttons %d", mx, my, b);
 		int cursorIdx = 0;
 		if( b & SDL_BUTTON_LMASK )
 			cursorIdx |= 1;
@@ -681,16 +683,23 @@ int main(int argc, char* argv[])
 				__android_log_print(ANDROID_LOG_INFO, "Ballfield", "SDL key event: evt %s state %s key %4d %12s scancode %4d mod %2d unicode %d", evt.type == SDL_KEYUP ? "UP  " : "DOWN" , evt.key.state == SDL_PRESSED ? "PRESSED " : "RELEASED", (int)evt.key.keysym.sym, SDL_GetKeyName(evt.key.keysym.sym), (int)evt.key.keysym.scancode, (int)evt.key.keysym.mod, (int)evt.key.keysym.unicode);
 				if(evt.key.keysym.sym == SDLK_ESCAPE)
 					return 0;
-				if( evt.key.state == SDL_PRESSED )
+				if( evt.key.state == SDL_RELEASED )
 				{
 					if(evt.key.keysym.sym == SDLK_0)
+					{
 						SDL_ANDROID_SetScreenKeyboardButtonShown(SDL_ANDROID_SCREENKEYBOARD_BUTTON_2, 1);
+						SDL_ANDROID_SetMouseEmulationMode(0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1);
+					}
 					if(evt.key.keysym.sym == SDLK_1)
+					{
 						SDL_ANDROID_SetScreenKeyboardButtonShown(SDL_ANDROID_SCREENKEYBOARD_BUTTON_2, 0);
+						SDL_ANDROID_SetMouseEmulationMode(1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1);
+					}
 					if(evt.key.keysym.sym == SDLK_2)
 					{
-						SDL_ANDROID_SetScreenKeyboardButtonShown(SDL_ANDROID_SCREENKEYBOARD_BUTTON_DPAD, 1);
-						screen = SDL_SetVideoMode(SCREEN_W, SDL_GetVideoSurface()->h + 1, bpp, flags);
+						__android_log_print(ANDROID_LOG_INFO, "Ballfield", "Async text input started");
+						asyncTextInputBuf[0] = 0;
+						SDL_ANDROID_GetScreenKeyboardTextInputAsync(asyncTextInputBuf, sizeof(asyncTextInputBuf));
 					}
 					if(evt.key.keysym.sym == SDLK_3)
 						SDL_ANDROID_SetScreenKeyboardButtonShown(SDL_ANDROID_SCREENKEYBOARD_BUTTON_DPAD, 0);
@@ -746,6 +755,13 @@ int main(int argc, char* argv[])
 		{
 			__android_log_print(ANDROID_LOG_INFO, "Ballfield", "Screen keyboard shown: %d -> %d", screenKeyboardShown, SDL_IsScreenKeyboardShown(NULL));
 			screenKeyboardShown = SDL_IsScreenKeyboardShown(NULL);
+		}
+		if( SDL_IsScreenKeyboardShown(NULL) )
+		{
+			if(SDL_ANDROID_GetScreenKeyboardTextInputAsync(asyncTextInputBuf, sizeof(asyncTextInputBuf)) == SDL_ANDROID_TEXTINPUT_ASYNC_FINISHED)
+			{
+				__android_log_print(ANDROID_LOG_INFO, "Ballfield", "Async text input: %s", asyncTextInputBuf);
+			}
 		}
 
 		/* Animate */

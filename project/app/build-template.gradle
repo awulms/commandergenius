@@ -1,0 +1,23 @@
+apply plugin: 'com.android.application'
+
+android {
+    compileSdkVersion 26
+    buildToolsVersion "26.0.0"
+
+    defaultConfig {
+        applicationId "net.olofson.ballfield"
+        minSdkVersion 9
+        minSdkVersion 14 // ==GOOGLEPLAYGAMESERVICES==
+        targetSdkVersion 26
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled true
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), '../proguard-local.cfg', '../proguard.cfg'
+        }
+    }
+
+    dependencies { compile 'com.google.android.gms:play-services-games:11.4.0' } // ==GOOGLEPLAYGAMESERVICES==
+    dependencies { compile 'com.google.android.gms:play-services-drive:11.4.0' } // ==GOOGLEPLAYGAMESERVICES==
+}

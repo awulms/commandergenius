@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources
+  xmlns:tools="http://schemas.android.com/tools"
+  tools:ignore="MissingTranslation">
     <string name="app_name">Commander Genius</string>
 
 
@@ -22,7 +24,7 @@
     <string name="storage_phone">Internal storage - %d MB free</string>
     <string name="storage_sd">SD card storage - %d MB free</string>
     <string name="storage_custom">Specify directory</string>
-    <string name="storage_commandline">Specify command line parameters</string>
+    <string name="storage_commandline">Command line parameters, one argument per line</string>
     <string name="storage_question">Data installation location</string>
     <string name="optional_downloads">Downloads</string>
     <string name="downloads">Downloads</string>
@@ -157,11 +159,13 @@
     <string name="video_orientation_autodetect">Auto-detect screen orientation</string>
     <string name="video_bpp_24">24 bpp screen color depth</string>
     <string name="video_immersive">Hide system navigation buttons / immersive mode</string>
+    <string name="tv_borders">TV borders</string>
 
     <string name="text_edit_click_here">Tap to start typing, press Back when done</string>
 
     <string name="display_size_mouse">Mouse emulation mode</string>
     <string name="display_size">Display size for mouse emulation</string>
+    <string name="display_size_desktop">Desktop, no emulation</string>
     <string name="display_size_large">Large (tablets)</string>
     <string name="display_size_small">Small, magnifying glass</string>
     <string name="display_size_small_touchpad">Small, touchpad mode</string>
@@ -198,5 +202,8 @@
     <string name="google_play_game_services_app_id" translatable="false">==GOOGLEPLAYGAMESERVICES_APP_ID==</string>
 
     <string name="restarting_please_wait">Restarting, please wait.</string>
+
+    <string name="notification_app_is_running">%s is running</string>
+    <string name="notification_stop">Stop</string>
 
 </resources>

@@ -63,6 +63,8 @@ import android.content.Intent;
 import android.view.View;
 import android.view.Display;
 import android.net.Uri;
+import android.Manifest;
+import android.content.pm.PackageManager;
 
 
 class Mouse
@@ -104,8 +106,8 @@ abstract class DifferentTouchInput
 	public abstract void process(final MotionEvent event);
 	public abstract void processGenericEvent(final MotionEvent event);
 
-	public static int ExternalMouseDetected = 0;
-	
+	public static int ExternalMouseDetected = Mouse.MOUSE_HW_INPUT_FINGER;
+
 	public static DifferentTouchInput touchInput = getInstance();
 
 	public static DifferentTouchInput getInstance()
@@ -313,8 +315,8 @@ abstract class DifferentTouchInput
 		}
 		public void process(final MotionEvent event)
 		{
-			int hwMouseEvent = ((event.getSource() & InputDevice.SOURCE_STYLUS) == InputDevice.SOURCE_STYLUS) ? Mouse.MOUSE_HW_INPUT_STYLUS :
-								((event.getSource() & InputDevice.SOURCE_MOUSE) == InputDevice.SOURCE_MOUSE) ? Mouse.MOUSE_HW_INPUT_MOUSE :
+			int hwMouseEvent =  ((event.getSource() & InputDevice.SOURCE_MOUSE) == InputDevice.SOURCE_MOUSE || Globals.ForceHardwareMouse) ? Mouse.MOUSE_HW_INPUT_MOUSE :
+								((event.getSource() & InputDevice.SOURCE_STYLUS) == InputDevice.SOURCE_STYLUS) ? Mouse.MOUSE_HW_INPUT_STYLUS :
 								Mouse.MOUSE_HW_INPUT_FINGER;
 			if( ExternalMouseDetected != hwMouseEvent )
 			{
@@ -616,6 +618,8 @@ class DemoRenderer extends GLSurfaceView_SDL.Renderer
 	int mLastPendingResize = 0;
 	public void onWindowResize(final int w, final int h)
 	{
+		if (context.isRunningOnOUYA())
+			return; // TV screen is never resized, and this event will mess up TV borders
 		Log.d("SDL", "libSDL: DemoRenderer.onWindowResize(): " + w + "x" + h);
 		mLastPendingResize ++;
 		final int resizeThreadIndex = mLastPendingResize;
@@ -706,11 +710,18 @@ class DemoRenderer extends GLSurfaceView_SDL.Renderer
 		// Tweak video thread priority, if user selected big audio buffer
 		if( Globals.AudioBufferConfig >= 2 )
 			Thread.currentThread().setPriority( (Thread.NORM_PRIORITY + Thread.MIN_PRIORITY) / 2 ); // Lower than normal
-		 // Calls main() and never returns, hehe - we'll call eglSwapBuffers() from native code
+		// Calls main() and never returns, hehe - we'll call eglSwapBuffers() from native code
+		String commandline = Globals.CommandLine;
+		if( context.getIntent() != null && context.getIntent().getScheme() != null &&
+			context.getIntent().getScheme().compareTo(android.content.ContentResolver.SCHEME_FILE) == 0 &&
+			context.getIntent().getData() != null && context.getIntent().getData().getPath() != null )
+		{
+			commandline += " " + context.getIntent().getData().getPath();
+		}
 		nativeInit( Globals.DataDir,
-					Globals.CommandLine,
+					commandline,
 					( (Globals.SwVideoMode && Globals.MultiThreadedVideo) || Globals.CompatibilityHacksVideo ) ? 1 : 0,
-					Globals.RedirectStdout ? 1 : 0 );
+					0 );
 		System.exit(0); // The main() returns here - I don't bother with deinit stuff, just terminate process
 	}
 
@@ -742,7 +753,7 @@ class DemoRenderer extends GLSurfaceView_SDL.Renderer
 				this.notify();
 			}
 		}
-		if( context.isScreenKeyboardShown() )
+		if( context.isScreenKeyboardShown() && !context.keyboardWithoutTextInputShown )
 		{
 			try {
 				Thread.sleep(50); // Give some time to the keyboard input thread
@@ -763,7 +774,12 @@ class DemoRenderer extends GLSurfaceView_SDL.Renderer
 
 	public void showScreenKeyboardWithoutTextInputField() // Called from native code
 	{
-		context.showScreenKeyboardWithoutTextInputField();
+		context.showScreenKeyboardWithoutTextInputField(Globals.TextInputKeyboard);
+	}
+
+	public void showInternalScreenKeyboard(int keyboard) // Called from native code
+	{
+		context.showScreenKeyboardWithoutTextInputField(keyboard);
 	}
 
 	public void showScreenKeyboard(final String oldText, int unused) // Called from native code
@@ -927,12 +943,22 @@ class DemoRenderer extends GLSurfaceView_SDL.Renderer
 		}
 	}
 
+	public void setSystemMousePointerVisible(int visible)
+	{
+		context.setSystemMousePointerVisible(visible);
+	}
+
 	public void restartMyself(String restartParams)
 	{
 		Intent intent = new Intent(context, RestartMainActivity.class);
 		intent.putExtra(RestartMainActivity.SDL_RESTART_PARAMS, restartParams);
 		context.startActivity(intent);
 		System.exit(0);
+	}
+
+	public void setConfigOptionFromSDL(int option, int value)
+	{
+		Settings.setConfigOptionFromSDL(option, value);
 	}
 
 	private int PowerOf2(int i)
@@ -944,7 +970,7 @@ class DemoRenderer extends GLSurfaceView_SDL.Renderer
 	}
 
 	private native void nativeInitJavaCallbacks();
-	private native void nativeInit(String CurrentPath, String CommandLine, int multiThreadedVideo, int isDebuggerConnected);
+	private native void nativeInit(String CurrentPath, String CommandLine, int multiThreadedVideo, int unused);
 	private native void nativeResize(int w, int h, int keepAspectRatio);
 	private native void nativeDone();
 	private native void nativeGlContextLost();
@@ -977,7 +1003,7 @@ class DemoGLSurfaceView extends GLSurfaceView_SDL {
 	public DemoGLSurfaceView(MainActivity context) {
 		super(context);
 		mParent = context;
-		setEGLConfigChooser(Globals.VideoDepthBpp, Globals.NeedDepthBuffer, Globals.NeedStencilBuffer, Globals.NeedGles2);
+		setEGLConfigChooser(Globals.VideoDepthBpp, Globals.NeedDepthBuffer, Globals.NeedStencilBuffer, Globals.NeedGles2, Globals.NeedGles3);
 		mRenderer = new DemoRenderer(context);
 		setRenderer(mRenderer);
 	}
@@ -985,6 +1011,11 @@ class DemoGLSurfaceView extends GLSurfaceView_SDL {
 	@Override
 	public boolean onTouchEvent(final MotionEvent event) 
 	{
+		if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.ICE_CREAM_SANDWICH)
+		{
+			if (getX() != 0)
+				event.offsetLocation(-getX(), -getY());
+		}
 		DifferentTouchInput.touchInput.process(event);
 		if( DemoRenderer.mRatelimitTouchEvents )
 		{

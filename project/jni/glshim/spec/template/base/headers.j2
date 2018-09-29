@@ -1,7 +1,0 @@
-{% for header in headers %}
-{% if "<" in header %}
-#include {{ header }}
-{% else %}
-#include "{{ header }}"
-{% endif %}
-{% endfor %}

@@ -32,15 +32,14 @@ If you compile this code with SDL 1.3 or newer, or use in some other way, the li
 #include <stdint.h>
 #include <math.h>
 #include <string.h> // for memset()
-#include <GLES/gl.h>
-#include <GLES/glext.h>
 #include <netinet/in.h>
+
+#include "SDL_opengles.h"
 
 #include "SDL_config.h"
 
 #include "SDL_version.h"
 
-//#include "SDL_opengles.h"
 #include "SDL_screenkeyboard.h"
 #include "../SDL_sysvideo.h"
 #include "SDL_androidvideo.h"
@@ -59,6 +58,7 @@ static SDL_Rect hiddenButtons[SDL_ANDROID_SCREENKEYBOARD_BUTTON_NUM];
 static short buttonsize = 1;
 static short buttonDrawSize = 1;
 static float transparency = 128.0f/255.0f;
+static int preventButtonOverlap = 0;
 
 static SDL_Rect arrows[MAX_JOYSTICKS], arrowsExtended[MAX_JOYSTICKS], buttons[MAX_BUTTONS];
 static SDL_Rect arrowsDraw[MAX_JOYSTICKS], buttonsDraw[MAX_BUTTONS];
@@ -86,7 +86,7 @@ typedef struct
     GLfloat h;
 } GLTexture_t;
 
-static GLTexture_t arrowImages[9];
+static GLTexture_t arrowImages[12];
 static GLTexture_t buttonAutoFireImages[MAX_BUTTONS_AUTOFIRE*2]; // These are not used anymore
 static GLTexture_t buttonImages[MAX_BUTTONS*2];
 static GLTexture_t mousePointer;
@@ -95,6 +95,8 @@ enum { MOUSE_POINTER_W = 32, MOUSE_POINTER_H = 32, MOUSE_POINTER_X = 5, MOUSE_PO
 static int themeType = 0;
 static int joystickTouchPoints[MAX_JOYSTICKS*2];
 static int floatingScreenJoystick = 0;
+
+int SDL_ANDROID_AsyncTextInputActive = 0;
 
 static void R_DumpOpenGlState(void);
 
@@ -153,6 +155,8 @@ oldGlState;
 
 static inline void beginDrawingTex()
 {
+#if SDL_VIDEO_OPENGL_ES_VERSION == 1
+
 #ifndef SDL_TOUCHSCREEN_KEYBOARD_SAVE_RESTORE_OPENGL_STATE
 	// Make the video somehow work on emulator
 	oldGlState.texture2d = GL_TRUE;
@@ -170,7 +174,6 @@ static inline void beginDrawingTex()
 	// However GLES 1.1 spec defines all theese values, so it's a device fault for not implementing them
 	oldGlState.texture2d = glIsEnabled(GL_TEXTURE_2D);
 	glGetIntegerv(GL_ACTIVE_TEXTURE, &oldGlState.texunitId);
-	glGetIntegerv(GL_CLIENT_ACTIVE_TEXTURE, &oldGlState.clientTexunitId);
 #endif
 
 	//R_DumpOpenGlState();
@@ -186,7 +189,6 @@ static inline void beginDrawingTex()
 	*/
 
 	glActiveTexture(GL_TEXTURE0);
-	glClientActiveTexture(GL_TEXTURE0);
 
 #ifdef SDL_TOUCHSCREEN_KEYBOARD_SAVE_RESTORE_OPENGL_STATE
 	glGetIntegerv(GL_TEXTURE_BINDING_2D, &oldGlState.textureId);
@@ -195,15 +197,15 @@ static inline void beginDrawingTex()
 	oldGlState.blend = glIsEnabled(GL_BLEND);
 	glGetIntegerv(GL_BLEND_SRC, &oldGlState.blend1);
 	glGetIntegerv(GL_BLEND_DST, &oldGlState.blend2);
-	glGetBooleanv(GL_COLOR_ARRAY, &oldGlState.colorArray);
+	//glGetBooleanv(GL_COLOR_ARRAY, &oldGlState.colorArray);
 	// It's very unlikely that some app will use GL_TEXTURE_CROP_RECT_OES, so just skip it
 #endif
 
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
 	glEnable(GL_TEXTURE_2D);
 	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-	glEnable(GL_BLEND);
-	glDisable(GL_CULL_FACE);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glDisableClientState(GL_COLOR_ARRAY);
 	//static const GLfloat color[] = { 1.0f, 1.0f, 1.0f, 1.0f };
 	//glTexEnvfv(GL_TEXTURE_ENV, GL_TEXTURE_ENV_COLOR, color);
@@ -213,27 +215,31 @@ static inline void beginDrawingTex()
 	//glDisableClientState(GL_NORMAL_ARRAY);
 	//glDisableClientState(GL_VERTEX_ARRAY);
 	//glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+#endif
 }
 
 static inline void endDrawingTex()
 {
 	// Restore OpenGL state
-	if( oldGlState.texture2d == GL_FALSE )
-		glDisable(GL_TEXTURE_2D);
+#if SDL_VIDEO_OPENGL_ES_VERSION == 1
 	glBindTexture(GL_TEXTURE_2D, oldGlState.textureId);
-	glColor4f(oldGlState.color[0], oldGlState.color[1], oldGlState.color[2], oldGlState.color[3]);
-	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, oldGlState.texEnvMode);
 	if( oldGlState.blend == GL_FALSE )
 		glDisable(GL_BLEND);
 	glBlendFunc(oldGlState.blend1, oldGlState.blend2);
 	glActiveTexture(oldGlState.texunitId);
-	glClientActiveTexture(oldGlState.clientTexunitId);
+
+	if( oldGlState.texture2d == GL_FALSE )
+		glDisable(GL_TEXTURE_2D);
+	glColor4f(oldGlState.color[0], oldGlState.color[1], oldGlState.color[2], oldGlState.color[3]);
+	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, oldGlState.texEnvMode);
 	if( oldGlState.colorArray )
 		glEnableClientState(GL_COLOR_ARRAY);
+#endif
 }
 
 static inline void drawCharTexFlip(GLTexture_t * tex, SDL_Rect * src, SDL_Rect * dest, int flipX, int flipY, float r, float g, float b, float a)
 {
+#if SDL_VIDEO_OPENGL_ES_VERSION == 1
 	GLint cropRect[4];
 
 	if( !dest->h || !dest->w )
@@ -269,6 +275,7 @@ static inline void drawCharTexFlip(GLTexture_t * tex, SDL_Rect * src, SDL_Rect *
 	}
 	glTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_CROP_RECT_OES, cropRect);
 	glDrawTexiOES(dest->x + SDL_ANDROID_ScreenVisibleRect.x, SDL_ANDROID_sRealWindowHeight - dest->y - dest->h - SDL_ANDROID_ScreenVisibleRect.y, 0, dest->w, dest->h);
+#endif
 }
 
 static inline void drawCharTex(GLTexture_t * tex, SDL_Rect * src, SDL_Rect * dest, float r, float g, float b, float a)
@@ -484,7 +491,34 @@ unsigned SDL_ANDROID_processTouchscreenKeyboard(int x, int y, int action, int po
 	if( action == MOUSE_DOWN )
 	{
 		//__android_log_print(ANDROID_LOG_INFO, "libSDL", "touch %03dx%03d ptr %d action %d", x, y, pointerId, action);
-		for( j = 0; j < joyAmount; j++ )
+		int processOtherButtons = 1;
+
+		for( i = 0; i < MAX_BUTTONS; i++ )
+		{
+			if( ! buttons[i].h || ! buttons[i].w )
+				continue;
+			if( InsideRect( &buttons[i], x, y) )
+			{
+				processed |= 1<<i;
+				if( pointerInButtonRect[i] == -1 )
+				{
+					pointerInButtonRect[i] = pointerId;
+					if( i == BUTTON_TEXT_INPUT )
+						SDL_ANDROID_ToggleScreenKeyboardTextInput(NULL);
+					else if( buttonsStayPressedAfterTouch[i] )
+						SDL_ANDROID_MainThreadPushKeyboardKey( SDL_GetKeyboardState(NULL)[buttonKeysyms[i]] == 0 ? SDL_PRESSED : SDL_RELEASED, buttonKeysyms[i], 0 );
+					else
+						SDL_ANDROID_MainThreadPushKeyboardKey( SDL_PRESSED, buttonKeysyms[i], 0 );
+					if( preventButtonOverlap )
+					{
+						processOtherButtons = 0;
+						break;
+					}
+				}
+			}
+		}
+
+		for( j = 0; j < joyAmount && processOtherButtons; j++ )
 		{
 			if( InsideRect( &arrows[j], x, y ) )
 			{
@@ -517,25 +551,10 @@ unsigned SDL_ANDROID_processTouchscreenKeyboard(int x, int y, int action, int po
 						oldArrows = i;
 					}
 				}
-			}
-		}
-
-		for( i = 0; i < MAX_BUTTONS; i++ )
-		{
-			if( ! buttons[i].h || ! buttons[i].w )
-				continue;
-			if( InsideRect( &buttons[i], x, y) )
-			{
-				processed |= 1<<i;
-				if( pointerInButtonRect[i] == -1 )
+				if( preventButtonOverlap )
 				{
-					pointerInButtonRect[i] = pointerId;
-					if( i == BUTTON_TEXT_INPUT )
-						SDL_ANDROID_ToggleScreenKeyboardTextInput(NULL);
-					else if( buttonsStayPressedAfterTouch[i] )
-						SDL_ANDROID_MainThreadPushKeyboardKey( SDL_GetKeyboardState(NULL)[buttonKeysyms[i]] == 0 ? SDL_PRESSED : SDL_RELEASED, buttonKeysyms[i], 0 );
-					else
-						SDL_ANDROID_MainThreadPushKeyboardKey( SDL_PRESSED, buttonKeysyms[i], 0 );
+					processOtherButtons = 0;
+					break;
 				}
 			}
 		}
@@ -606,10 +625,13 @@ unsigned SDL_ANDROID_processTouchscreenKeyboard(int x, int y, int action, int po
 		int processOtherButtons = 1;
 		for( i = 0; i < MAX_BUTTONS; i++ )
 		{
-			if( buttonsGenerateSdlEvents[i] && pointerInButtonRect[i] == pointerId )
+			if( pointerInButtonRect[i] == pointerId )
 			{
-				processOtherButtons = 0;
-				break;
+				if (buttonsGenerateSdlEvents[i] || preventButtonOverlap)
+				{
+					processOtherButtons = 0;
+					break;
+				}
 			}
 		}
 		if( processOtherButtons )
@@ -624,6 +646,7 @@ unsigned SDL_ANDROID_processTouchscreenKeyboard(int x, int y, int action, int po
 			if( pointerInButtonRect[BUTTON_ARROWS+j] == pointerId )
 			{
 				processed |= 1<<(BUTTON_ARROWS+j);
+				/*
 				if( floatingScreenJoystick && j == 0 && ! InsideRect( &arrows[j], x, y ) )
 				{
 					int xx = 0, yy = 0;
@@ -633,7 +656,8 @@ unsigned SDL_ANDROID_processTouchscreenKeyboard(int x, int y, int action, int po
 					arrows[0].y += yy;
 					arrowsDraw[0] = arrowsExtended[0] = arrows[0];
 				}
-				if( ! InsideRect( &arrowsExtended[j], x, y ) )
+				*/
+				if( ! InsideRect( &arrowsExtended[j], x, y ) && ! floatingScreenJoystick )
 				{
 					pointerInButtonRect[BUTTON_ARROWS+j] = -1;
 					if( SDL_ANDROID_joysticksAmount > 0 )
@@ -1165,6 +1189,7 @@ SDLKey SDL_ANDROID_GetScreenKeyboardButtonKey(int buttonId)
 int SDL_ANDROID_SetScreenKeyboardShown(int shown)
 {
 	touchscreenKeyboardShown = shown;
+	return 0;
 };
 
 int SDL_ANDROID_GetScreenKeyboardShown(void)
@@ -1209,15 +1234,31 @@ int SDL_ANDROID_ToggleScreenKeyboardTextInput(const char * previousText)
 		previousText = "";
 	strncpy(textIn, previousText, sizeof(textIn));
 	textIn[sizeof(textIn)-1] = 0;
-	SDL_ANDROID_CallJavaShowScreenKeyboard(textIn, NULL, 0);
+	SDL_ANDROID_CallJavaShowScreenKeyboard(textIn, NULL, 0, 0);
 	return 1;
 };
 
 int SDLCALL SDL_ANDROID_GetScreenKeyboardTextInput(char * textBuf, int textBufSize)
 {
-	SDL_ANDROID_CallJavaShowScreenKeyboard(textBuf, textBuf, textBufSize);
+	SDL_ANDROID_CallJavaShowScreenKeyboard(textBuf, textBuf, textBufSize, 0);
 	return 1;
 };
+
+SDL_AndroidTextInputAsyncStatus_t SDLCALL SDL_ANDROID_GetScreenKeyboardTextInputAsync(char * textBuf, int textBufSize)
+{
+	if( SDL_ANDROID_TextInputFinished )
+	{
+		SDL_ANDROID_TextInputFinished = 0;
+		SDL_ANDROID_AsyncTextInputActive = 0;
+		return SDL_ANDROID_TEXTINPUT_ASYNC_FINISHED;
+	}
+	if( !SDL_ANDROID_IsScreenKeyboardShownFlag )
+	{
+		SDL_ANDROID_AsyncTextInputActive = 1;
+		SDL_ANDROID_CallJavaShowScreenKeyboard(textBuf, textBuf, textBufSize, 1);
+	}
+	return SDL_ANDROID_TEXTINPUT_ASYNC_IN_PROGRESS;
+}
 
 int SDLCALL SDL_HasScreenKeyboardSupport(void *unused)
 {
@@ -1254,6 +1295,12 @@ int SDLCALL SDL_ANDROID_SetScreenKeyboardButtonGenerateTouchEvents(int buttonId,
 	if( buttonId < 0 || buttonId >= SDL_ANDROID_SCREENKEYBOARD_BUTTON_NUM )
 		return 0;
 	buttonsGenerateSdlEvents[buttonId] = generateEvents;
+	return 1;
+}
+
+int SDLCALL SDL_ANDROID_SetScreenKeyboardPreventButtonOverlap(int prevent)
+{
+	preventButtonOverlap = prevent;
 	return 1;
 }
 
@@ -1334,6 +1381,7 @@ extern DECLSPEC int SDL_ANDROID_ScreenKeyboardUpdateToNewVideoMode(int oldx, int
  */
 void R_DumpOpenGlState(void)
 {
+#if SDL_VIDEO_OPENGL_ES_VERSION == 1
 #define CAPABILITY( X ) {GL_ ## X, # X}
 	/* List taken from here: http://www.khronos.org/opengles/sdk/1.1/docs/man/glIsEnabled.xml */
 	const struct { GLenum idx; const char * text; } openGLCaps[] = {
@@ -1421,4 +1469,5 @@ void R_DumpOpenGlState(void)
 
 	glActiveTexture(activeTexUnit);
 	glClientActiveTexture(activeClientTexUnit);
+#endif
 }
