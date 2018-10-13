@@ -12,7 +12,7 @@ APP_AVAILABLE_STATIC_LIBS := jpeg png freetype fontconfig xerces ogg vorbis flac
 APP_MODULES := application sdl-1.2 sdl_main sdl_native_helpers jpeg png ogg flac vorbis freetype tremor ogg
 
 ifeq ($(APP_ABI),)
-APP_ABI := armeabi
+APP_ABI := armeabi-v7a
 endif
 
 # The namespace in Java file, with dots replaced with underscores
@@ -60,11 +60,6 @@ SDL_ADDITIONAL_CFLAGS := -DSDL_ANDROID_KEYCODE_MOUSE=UNKNOWN -DSDL_ANDROID_KEYCO
 
 SDL_VERSION := 1.2
 
-# Link-time optimization enabled for optimization junkies. -O999 etc
-#APP_CFLAGS := -flto
-#APP_CXXFLAGS := -flto
-#APP_LDFLAGS := -flto
-# Latest GCC got better LTO support
 NDK_TOOLCHAIN_VERSION := clang
 
 APP_PLATFORM := android-16
